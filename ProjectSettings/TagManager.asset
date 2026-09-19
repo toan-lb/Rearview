@@ -42,7 +42,7 @@ TagManager:
   - 
   - 
   - Item
-  - 
+  - P2P_Screen
   m_SortingLayers:
   - name: Default
     uniqueID: 0
