@@ -35,6 +35,7 @@ namespace Rearview.Editor
             mat.SetColor("_BaseColor", Color.white);
             mat.SetColor("_EmissionColor", Color.white);
             mat.EnableKeyword("_EMISSION");
+            mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
             EditorUtility.SetDirty(mat);
 
             // Find or create HMI Manager in scene
@@ -52,6 +53,7 @@ namespace Rearview.Editor
             manager.EnsureUIExists(forceRebuild: true);
             manager.SelectApp(HMIDisplayManager.AAOSApp.Launcher);
             manager.EnsureHVACScreenOff();
+            manager.EnsureScreenMaterialAssigned();
             EditorUtility.SetDirty(manager);
 
             // Per RCC vehicle pipeline standards (rcc-vehicle-control-pipeline/SKILL.md):
@@ -70,15 +72,50 @@ namespace Rearview.Editor
                         {
                             Undo.DestroyObjectImmediate(col);
                         }
+
+                        // Ensure slot 0 has the screen material assigned
+                        Material[] mats = mr.sharedMaterials;
+                        bool assigned = false;
+                        for (int i = 0; i < mats.Length; i++)
+                        {
+                            if (mats[i] != null && mats[i].name.Contains("plasticGlossy.001"))
+                            {
+                                mats[i] = mat;
+                                assigned = true;
+                            }
+                        }
+                        if (!assigned && mats.Length > 0)
+                        {
+                            mats[0] = mat;
+                        }
+                        mr.sharedMaterials = mats;
                         EditorUtility.SetDirty(mr.gameObject);
                         break;
                     }
                 }
             }
 
+            // Immediately render camera to update RenderTexture for Scene/Game view
+            if (manager.hmiCamera != null)
+            {
+                manager.hmiCamera.Render();
+            }
+
             UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
             AssetDatabase.SaveAssets();
-            Debug.Log("<color=green><b>[HMIDisplaySetup] THÀNH CÔNG!</b></color> Hệ thống AAOS HMI Display (Unobstructed Cluster + App Grid Launcher + HVAC Screen Off) đã được thiết lập hoàn chỉnh trong scene!");
+            Debug.Log("<color=green><b>[HMIDisplaySetup] THÀNH CÔNG!</b></color> Hệ thống AAOS HMI Display (Unobstructed Cluster + App Grid Launcher + HVAC Screen Off) đã được gắn trực tiếp lên Mesh và Render hoàn chỉnh!");
+        }
+
+        [InitializeOnLoadMethod]
+        private static void AutoSetupOnLoad()
+        {
+            EditorApplication.delayCall += () =>
+            {
+                if (!Application.isPlaying)
+                {
+                    SetupHMIInScene();
+                }
+            };
         }
     }
 }

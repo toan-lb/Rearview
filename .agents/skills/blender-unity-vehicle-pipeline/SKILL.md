@@ -12,7 +12,19 @@ This skill defines the mandatory technical specifications, coordinate convention
 
 ---
 
+## 0. Visual Quality & Collaboration Protocol (Tuyệt Đối Không Làm Tạm Bợ)
+
+> [!IMPORTANT]
+> **Quy Tắc Thẩm Mỹ & Hỗ Trợ Thiết Kế (Mandatory):**
+>
+> Khi thực hiện bất kỳ công việc nào liên quan đến **Visual** của xe (tạo model, chỉnh sửa mesh, tách chi tiết, gán vật liệu, làm UV, chỉnh shader):
+> - **Không làm tạm bợ:** Nếu thấy không thể làm đẹp, khớp tỷ lệ form xe hoàn hảo, hoặc chất lượng visual không đạt: **BẮT BUỘC DỪNG LẠI và yêu cầu người dùng (USER) hỗ trợ hoặc xác nhận**.
+> - **User luôn sẵn sàng hỗ trợ:** Người dùng có thể trực tiếp can thiệp setup trong Unity, tinh chỉnh material/shader, hoặc confirm phương án thiết kế.
+
+---
+
 ## 1. The 5 Golden Rules for Vehicle Models
+
 
 ### Rule 1: Root Object Transform & Hierarchy
 - The vehicle MUST have a single root object (Empty or Top GameObject, e.g. `The_Last_Drive_Car`).
@@ -112,4 +124,24 @@ The script verifies:
    - **Rear wheels:** Select `Wheel_RL` and `Wheel_RR`.
    - **Body collider:** Select `Car_Collider` -> click "Add MeshCollider To Selected Body".
    - **Finish!**
-5. Save the configured GameObject as a **Prefab Variant** or **Original Prefab** in `Assets/Prefabs/`. Future mesh/material edits in Blender will update automatically without re-running the Wizard.
+5. Save the configured GameObject as an **Original Prefab** (e.g. `Assets/_Rearview/Prefab/Car.prefab` or `Assets/RealisticCarControllerV4/Prefabs/Vehicles/The_Last_Drive_Car.prefab`).
+
+---
+
+## 5. Modifying Vehicle Meshes (Break Mesh, Add Mesh) & Unpacked Prefab Sync
+
+> [!WARNING]
+> Because the configured vehicle Prefab is **Unpacked Completely**, subsequent mesh changes in Blender (such as **breaking meshes** into separate doors/hood/bumpers or **adding new accessories/props**) will **NOT** automatically propagate into the Prefab asset!
+>
+> Re-importing or reconstructing the Prefab manually carries severe risks:
+> - Creating accidental child colliders that break RCC wheel suspension (Compound Collider bug).
+> - Dropping essential RCC references (`Wheel_FL/FR/RL/RR`, `Steering_Wheel`, `COM`, cameras).
+> - Breaking gameplay script connections (`VehicleCharacterManager.doorPoint`, `HMIDisplayManager.Curve_Screen`).
+
+For all mesh modifications (breaking, adding, detaching):
+1. Strictly follow the SOP and 5 Immutable Physics Laws in **[vehicle-mesh-modification-pipeline](../vehicle-mesh-modification-pipeline/SKILL.md)**.
+2. After exporting the updated FBX from Blender, run the automated tool:
+   - In Unity: **Tools -> Rearview -> 🚗 Sync Vehicle Model Meshes to Prefabs...**
+   - Click **"⚡ Đồng Bộ Toàn Bộ Mesh Vào Prefab"**.
+   - Click **"🔍 Kiểm Tra Kết Nối RCC & Gameplay References"** to verify physics and reference integrity.
+

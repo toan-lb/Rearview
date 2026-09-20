@@ -67,9 +67,21 @@ Use project-standard physics materials:
 - Chassis/Bumper Collider: `Assets/RealisticCarControllerV4/Physics Materials/RCC_VehicleCollider.physicMaterial`
 
 ### 2.3 Convex Collision Hull Limit
-- The chassis collider (`Car_Collider`) MUST be a convex mesh with **<= 255 triangles** to comply with Unity PhysX cooking limits.
+- The chassis collider (`Car_Collider`) MUST be a convex mesh with **<= 255 triangles** to comply with Unity PhysX cooking limits. Alternatively, a single `BoxCollider` on the chassis container (`The_Last_Drive_Car`) may be used.
+
+### 2.4 Compound Collider & Visual Mesh Protection (Zero-Child-Collider Rule)
+- **The Compound Collider Trap:** In Unity PhysX, any collider attached to any child of a dynamic Rigidbody becomes part of the vehicle's compound collider.
+- **Visual Meshes:** All visual body meshes, doors, glass, screens, seats, and wheels under `The_Last_Drive_Car` **MUST NEVER HAVE ANY COLLIDER ATTACHED**.
+- **Wheel Overlap Warning:** If a child visual mesh has a collider and intersects the suspension or sweep of an `RCC_WheelCollider`, the wheel raycast will hit the vehicle's own body, causing catastrophic physics failures (violent oscillations, vehicle launching into the sky, or getting stuck).
+- **Layer Isolation:**
+  - Car Root & Visual Meshes: Layer `8` (`RCC_Vehicle`).
+  - Wheel Colliders: Layer `9` (`RCC_WheelCollider`).
+  - Screens: Layer `31` (`P2P_Screen`).
+  - Layer `9` is configured in Unity Physics Matrix to NEVER collide with Layer `8`.
+- See [vehicle-mesh-modification-pipeline](../vehicle-mesh-modification-pipeline/SKILL.md) and `VehicleMeshSyncTool.cs` for automated validation and collider cleaning.
 
 ---
+
 
 ## 3. Control Handover System (Enter / Exit Mechanics)
 
@@ -179,9 +191,12 @@ Modeled after **Android Automotive OS (AAOS)** with App Launcher Grid and 4 Full
 
 Before testing a scene or vehicle modification:
 - [ ] Vehicle root has `RCC_CarControllerV4` with 4 assigned `RCC_WheelCollider` components.
-- [ ] `Car_Collider` exists with convex mesh <= 255 triangles.
+- [ ] `Car_Collider` exists with convex mesh <= 255 triangles (or BoxCollider on `The_Last_Drive_Car`).
+- [ ] **Zero-Child-Collider Rule verified:** No visual mesh under `The_Last_Drive_Car` has a `Collider` attached.
+- [ ] Layer isolation verified: Car root/visuals on Layer 8 (`RCC_Vehicle`), WheelColliders on Layer 9 (`RCC_WheelCollider`), Screens on Layer 31 (`P2P_Screen`).
 - [ ] Driver door point is set on the left side (`X ≈ -2.2m`).
 - [ ] Pressing `[E]` near vehicle enters car; pressing `[E]` inside exits car.
 - [ ] Character does not fall through ground when exiting (Ground Raycast working).
 - [ ] Only 1 `AudioListener` is active in the scene at any time.
 - [ ] HMI screen displays speed, RPM, radio stations, and DTC codes correctly.
+
