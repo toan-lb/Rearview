@@ -83,9 +83,9 @@ namespace Rearview
         [Tooltip("Animation clip of character entering the car (e.g. Assets/_Rearview/Animations/Y_Bot@Entering_Car.fbx).")]
         public AnimationClip enterCarClip;
 
-        [Tooltip("Playback speed multiplier for the enter animation (1.0 = normal ~5.5s, 1.25 = ~4.4s).")]
+        [Tooltip("Playback speed multiplier for enter/exit animation (1.0 = normal ~5.5s, 1.875 = ~2.9s).")]
         [Range(0.5f, 3f)]
-        public float enterAnimSpeed = 1.25f;
+        public float enterAnimSpeed = 1.875f;
 
         [Tooltip("Duration in seconds to smoothly align character to the driver door before playing animation.")]
         [Range(0.1f, 1f)]

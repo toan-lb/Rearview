@@ -249,7 +249,7 @@ namespace Rearview.Editor
             manager.startYawOffset = 90f;
             manager.interactUIEvent = interactUIEvent;
             manager.enterCarClip = enterCarClip;
-            manager.enterAnimSpeed = 1.25f;
+            manager.enterAnimSpeed = 1.875f;
             manager.alignToDoorDuration = 0.35f;
             manager.maxExitSpeed = 3f;
             manager.carMovingWarningText = "Dừng xe để xuống!";
