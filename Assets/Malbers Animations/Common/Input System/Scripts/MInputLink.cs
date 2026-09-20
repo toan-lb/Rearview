@@ -1,4 +1,4 @@
-﻿using MalbersAnimations.Events;
+using MalbersAnimations.Events;
 using MalbersAnimations.Scriptables;
 
 using UnityEngine;
@@ -1582,11 +1582,11 @@ namespace MalbersAnimations.InputSystem
         {
             serializedObject.Update();
 
-            var ActiveActionMapName = Application.isPlaying ? $" Active Map: [{M.ActiveMActionMap.Name}]" : "";
+            var ActiveActionMapName = Application.isPlaying && M.ActiveMActionMap != null ? $" Active Map: [{M.ActiveMActionMap.Name}]" : "";
 
             MalbersEditor.DrawDescription(M.versionInput + ActiveActionMapName);
 
-            if (Application.isPlaying && M.playerInput)
+            if (Application.isPlaying && M.playerInput && M.playerInput.currentActionMap != null)
             {
                 EditorGUILayout.LabelField($"Scheme: [{M.playerInput.currentControlScheme}] ActionMap [{M.playerInput.currentActionMap.name}] Active {M.playerInput.currentActionMap.enabled}");
             }

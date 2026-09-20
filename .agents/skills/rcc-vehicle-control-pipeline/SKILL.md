@@ -132,28 +132,37 @@ When the player presses `[E]` while driving:
 
 ---
 
-## 4. In-Vehicle Curved HMI Display & Telemetry
+## 4. In-Vehicle Curved HMI Display & AAOS Architecture
 
 Managed by [HMIDisplayManager.cs](file:///Users/toanlb/toanlb_game/Rearview/Assets/_Rearview/Scripts/HMIDisplayManager.cs):
 
-### 4.1 Rendering Setup
-- A dedicated 2D Canvas is placed on the isolated `P2P_Screen` layer.
-- An orthographic camera renders the Canvas directly into `P2P_Screen_RT.renderTexture`.
-- The RenderTexture is assigned to the `Curve_Screen` mesh material (`plasticGlossy.001`).
+### 4.1 Rendering Setup & Screen Decoupling
+- A dedicated 2D Canvas is placed on the isolated `P2P_Screen` layer at `(0, -500, 0)`.
+- An orthographic camera renders the Canvas directly into `P2P_Screen_RT.renderTexture` (1920x320).
+- The RenderTexture is assigned to the `Curve_Screen` mesh material (`plasticGlossy.001` with `_EMISSION` enabled).
+- **Zero-Collider Rule:** `Curve_Screen` is strictly a visual display mesh and MUST NOT have any colliders attached, preserving clean PhysX compound bounds for the vehicle's dynamic Rigidbody.
+- **HVAC Screen Decoupling:** The lower console `HVAC_Screen` is assigned `HVAC_Screen_Off.mat` (non-emissive dark glass) to ensure it remains dark and does not mirror the upper P2P screen.
 
-### 4.2 Telemetry & Diagnostic DTC Codes
-- **Driver Cluster:** Real-time extraction of `carController.speed`, `carController.engineRPM`, `carController.currentGear`.
-- **Diagnostic Trouble Codes (DTC):**
-  - Used for vehicle repair and quest gating:
-    - `DTC: NO FAULT CODES DETECTED`
-    - `DTC: P0118 - CẢM BIẾN NHIỆT ĐỘ NƯỚC LÀM MÁT (CHẬP)`
-    - `DTC: P0300 - BỎ ĐÁNH LỬA ĐA XY-LANH (BUGI CŨ)`
-    - `DTC: P0420 - HIỆU SUẤT BẦU LỌC KHÍ THẢI KÉM`
-- **Infotainment & Radio:**
-  - `FM 94.5 MHz - Coastal Waves (Mưa Đêm)`
-  - `FM 88.9 MHz - Father's Tape: Lời Nhắn Của Bố (1998)`
-- **Foreshadowing Indicator:**
-  - Status display: `CABIN_STABILIZER (BABY_MODE): ON`
+### 4.2 Unobstructed Driver Cluster (Left 48%)
+- **Steering Wheel Opening (X: 0.42 to 0.78, Y: 0.40 to 0.76):**
+  - Primary Speedometer (large bold digits), `KM/H` unit label, and `GEAR` (`D1`, `P`, `R`, `N`) framed right inside the upper steering wheel opening.
+- **Unobstructed Left Area (X: 0.03 to 0.38):**
+  - Completely visible to the left of the steering wheel: RPM text & dynamic horizontal RPM bar, engine coolant `TEMP`, battery voltage `BAT`, and diagnostic `DTC` fault codes.
+
+### 4.3 Center AAOS Infotainment (Right 50%)
+Modeled after **Android Automotive OS (AAOS)** with App Launcher Grid and 4 Fullscreen App screens:
+- **Top System Bar:** Real-time clock, coastal weather (`16°C Mưa Đêm`), GPS/Network status badges, and `[ ⊞ APPS (1) ]` Home shortcut.
+- **State 0: App Launcher Grid (Default Home):**
+  - 4 interactive cards with icons and labels: `[2] 🧭 BẢN ĐỒ`, `[3] 📻 RADIO FM`, `[4] 🔧 CHẨN ĐOÁN DTC`, `[5] ⚙️ CÀI ĐẶT CABIN`.
+  - Selecting any card opens that specific app screen full-size on the center display.
+- **Fullscreen App Screens:**
+  - `[2] NAV`: Satellite navigation, route guidance, distance/ETA, road conditions, and Father's handwritten DIY note.
+  - `[3] MEDIA`: FM Radio tuner (`94.5 MHz`, `88.9 MHz Father's Tape 1998`), 12-bar dynamic equalizer visualizer, track info, Prev/Next channel buttons.
+  - `[4] DTC`: OBD-II Diagnostics, live coolant temp/battery/RPM gauges, DTC fault code scanner (`P0118`, `P0300`, `P0420`), severity badges, and Scan button.
+  - `[5] CABIN`: Cabin controls & `CABIN_STABILIZER (BABY_MODE)` toggle for suspension softening to keep the sleeping baby undisturbed in the rear seat.
+- **Navigation & Controls:**
+  - Each app screen contains a prominent `[ ◀ LAUNCHER (1) ]` button to return to the App Grid.
+  - Fast hotkeys: `[1]` or `[ESC]` for Launcher, `[2]` Nav, `[3]` Radio, `[4]` DTC, `[5]` Cabin, `[Tab]` to cycle apps, `[Q]`/`[E]` for radio stations, `[R]` to scan DTC, and `[B]` to toggle Baby Mode.
 
 ---
 

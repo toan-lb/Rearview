@@ -48,11 +48,37 @@ namespace Rearview.Editor
 
             manager.targetRenderTexture = rt;
             manager.screenMaterial = mat;
-            manager.EnsureUIExists();
+            // Force rebuild ensures the new AAOS App Launcher Grid & Unobstructed Cluster layout is generated
+            manager.EnsureUIExists(forceRebuild: true);
+            manager.SelectApp(HMIDisplayManager.AAOSApp.Launcher);
+            manager.EnsureHVACScreenOff();
             EditorUtility.SetDirty(manager);
 
+            // Per RCC vehicle pipeline standards (rcc-vehicle-control-pipeline/SKILL.md):
+            // Curve_Screen is strictly a visual display mesh and MUST NOT have any colliders attached
+            // to avoid polluting the vehicle's dynamic Rigidbody compound shape in PhysX.
+            var vehicle = Object.FindFirstObjectByType<RCC_CarControllerV4>();
+            if (vehicle != null)
+            {
+                MeshRenderer[] renderers = vehicle.GetComponentsInChildren<MeshRenderer>(true);
+                foreach (var mr in renderers)
+                {
+                    if (mr.gameObject.name.Equals("Curve_Screen", System.StringComparison.OrdinalIgnoreCase))
+                    {
+                        Collider[] colliders = mr.GetComponents<Collider>();
+                        foreach (var col in colliders)
+                        {
+                            Undo.DestroyObjectImmediate(col);
+                        }
+                        EditorUtility.SetDirty(mr.gameObject);
+                        break;
+                    }
+                }
+            }
+
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
             AssetDatabase.SaveAssets();
-            Debug.Log("<color=green><b>[HMIDisplaySetup] THÀNH CÔNG!</b></color> Hệ thống HMI Display (Canvas + Camera + RenderTexture + Material) đã được thiết lập hoàn chỉnh trong scene!");
+            Debug.Log("<color=green><b>[HMIDisplaySetup] THÀNH CÔNG!</b></color> Hệ thống AAOS HMI Display (Unobstructed Cluster + App Grid Launcher + HVAC Screen Off) đã được thiết lập hoàn chỉnh trong scene!");
         }
     }
 }

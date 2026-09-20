@@ -50951,6 +50951,11 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 9415477066dd0f747b6f9f0dea8c865c, type: 3}
+--- !u!4 &576722041 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 6778129924906366841, guid: 980ab7738e932414c90cf5e8d072a81f, type: 3}
+  m_PrefabInstance: {fileID: 5957863557728120928}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &576898671
 GameObject:
   m_ObjectHideFlags: 0
@@ -79425,8 +79430,9 @@ MonoBehaviour:
   hmiCanvas: {fileID: 15365238}
   hmiCamera: {fileID: 418454417}
   speedText: {fileID: 665318549}
-  rpmText: {fileID: 742252026}
+  kmhText: {fileID: 0}
   gearText: {fileID: 483087831}
+  rpmText: {fileID: 742252026}
   rpmBar: {fileID: 312304404}
   dtcText: {fileID: 498361674}
   tempText: {fileID: 1140709572}
@@ -79435,6 +79441,22 @@ MonoBehaviour:
   handbrakeIcon: {fileID: 0}
   clockText: {fileID: 43749767}
   weatherText: {fileID: 1207381428}
+  networkBadgeText: {fileID: 0}
+  statusHomeBtn: {fileID: 0}
+  currentApp: 0
+  launcherAppPanel: {fileID: 0}
+  navAppPanel: {fileID: 0}
+  radioAppPanel: {fileID: 0}
+  diagAppPanel: {fileID: 0}
+  settingsAppPanel: {fileID: 0}
+  launcherNavCardBtn: {fileID: 0}
+  launcherRadioCardBtn: {fileID: 0}
+  launcherDiagCardBtn: {fileID: 0}
+  launcherSettingsCardBtn: {fileID: 0}
+  navDestTitleText: {fileID: 0}
+  navDestDistText: {fileID: 0}
+  navConditionText: {fileID: 0}
+  navFatherNoteText: {fileID: 0}
   radioStationText: {fileID: 565496125}
   radioTrackText: {fileID: 2017967574}
   visualizerBars:
@@ -79446,7 +79468,14 @@ MonoBehaviour:
   - {fileID: 1415861529}
   - {fileID: 1100995472}
   - {fileID: 392990606}
+  diagDtcText: {fileID: 0}
+  diagSeverityText: {fileID: 0}
+  diagTempText: {fileID: 0}
+  diagBatText: {fileID: 0}
+  diagRpmText: {fileID: 0}
   babyModeText: {fileID: 732570008}
+  babyModeStatusBadge: {fileID: 0}
+  babyModeDescText: {fileID: 0}
   waypointText: {fileID: 1386801364}
   fatherNoteText: {fileID: 0}
   radioStations:
@@ -103235,12 +103264,16 @@ MonoBehaviour:
   rccCamera: {fileID: 57241921}
   character: {fileID: 1941707291327339138}
   hapCameraRig: {fileID: 1940995339}
-  doorPoint: {fileID: 0}
+  doorPoint: {fileID: 1569087899}
   interactionDistance: 3.5
   carInteractable: {fileID: 0}
+  interactUIEvent: {fileID: 11400000, guid: 9b85b9985b117db4e861fc7539d2e225, type: 2}
   showPrompt: 1
   enterPromptText: "Nh\u1EA5n [E] \u0110\u1EC3 L\xEAn Xe"
+  showExitPrompt: 0
+  exitPromptDuration: 3
   exitPromptText: "Nh\u1EA5n [E] \u0110\u1EC3 Xu\u1ED1ng Xe"
+  interactCooldown: 0.5
 --- !u!4 &1135874300
 Transform:
   m_ObjectHideFlags: 0
@@ -141513,6 +141546,37 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 400000, guid: 16188d0c81347f74b80cd4d2181bf2bb, type: 3}
   m_PrefabInstance: {fileID: 712151221}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &1569087898
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1569087899}
+  m_Layer: 8
+  m_Name: Door_Driver
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1569087899
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1569087898}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -1.15, y: 0.9, z: 0.2}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1886976304}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1569149097
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -167921,6 +167985,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c25271813931d814680ab7c84ef90710, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!4 &1886976304 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 8344939207916397014, guid: 980ab7738e932414c90cf5e8d072a81f, type: 3}
+  m_PrefabInstance: {fileID: 5957863557728120928}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &1887819337 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 400000, guid: 7e5c2b886df97094bbc3430df834642b, type: 3}
@@ -189874,6 +189943,22 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 1542489663517931954, guid: 6515cdf24ed804597800c42ebdd82321, type: 3}
+      propertyPath: internalComponents.Array.data[0].active
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1542489663517931954, guid: 6515cdf24ed804597800c42ebdd82321, type: 3}
+      propertyPath: internalComponents.Array.data[2].active
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2209784385860426173, guid: 6515cdf24ed804597800c42ebdd82321, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4367110168197098746, guid: 6515cdf24ed804597800c42ebdd82321, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 4704201386900760563, guid: 6515cdf24ed804597800c42ebdd82321, type: 3}
       propertyPath: m_LocalPosition.x
       value: -450.94244
@@ -189922,6 +190007,10 @@ PrefabInstance:
       propertyPath: Effects.Array.data[5].root
       value: 
       objectReference: {fileID: 1941707291327339139}
+    - target: {fileID: 8505930994022305437, guid: 6515cdf24ed804597800c42ebdd82321, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -191365,6 +191454,10 @@ PrefabInstance:
       propertyPath: m_LocalPosition.y
       value: 0.4475
       objectReference: {fileID: 0}
+    - target: {fileID: 2019388664067835280, guid: 980ab7738e932414c90cf5e8d072a81f, type: 3}
+      propertyPath: m_Layer
+      value: 8
+      objectReference: {fileID: 0}
     - target: {fileID: 2076443577009630602, guid: 980ab7738e932414c90cf5e8d072a81f, type: 3}
       propertyPath: m_IsActive
       value: 1
@@ -191383,6 +191476,18 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6885483135098887080, guid: 980ab7738e932414c90cf5e8d072a81f, type: 3}
       propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7163832114961096304, guid: 980ab7738e932414c90cf5e8d072a81f, type: 3}
+      propertyPath: SteeringWheel
+      value: 
+      objectReference: {fileID: 576722041}
+    - target: {fileID: 7163832114961096304, guid: 980ab7738e932414c90cf5e8d072a81f, type: 3}
+      propertyPath: steeringSensitivityFactor
+      value: 0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 7163832114961096304, guid: 980ab7738e932414c90cf5e8d072a81f, type: 3}
+      propertyPath: steeringWheelAngleMultiplier
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8344939207916397014, guid: 980ab7738e932414c90cf5e8d072a81f, type: 3}
@@ -191427,7 +191532,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
-    m_AddedGameObjects: []
+    m_AddedGameObjects:
+    - targetCorrespondingSourceObject: {fileID: 8344939207916397014, guid: 980ab7738e932414c90cf5e8d072a81f, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1569087899}
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 980ab7738e932414c90cf5e8d072a81f, type: 3}
 --- !u!1001 &6071568512650373901
@@ -191645,7 +191753,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1616548881650217903, guid: 3c49455ff7757444fa4b466c3250f423, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: -31.875183
+      value: -31.875122
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
