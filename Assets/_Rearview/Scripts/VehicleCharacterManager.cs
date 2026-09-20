@@ -268,6 +268,89 @@ namespace Rearview
         }
 
         /// <summary>
+        /// Robust ground detection that strictly excludes vehicle, character, triggers,
+        /// and non-environment layers to prevent characters jumping into the air.
+        /// </summary>
+        private bool TryGetGroundHeight(Vector3 searchPos, out float groundHeight, float referenceGroundY = float.NaN)
+        {
+            groundHeight = searchPos.y;
+
+            // Dynamic layer mask excluding all known non-ground layers
+            int excludeMask = 0;
+            string[] excludeLayers = new string[] {
+                "Ignore Raycast", "TransparentFX", "UI", "Water",
+                "RCC_Vehicle", "RCC_WheelCollider", "RCC_DetachablePart", "RCC_Prop",
+                "Animal", "BodyPart", "Enemy", "Player"
+            };
+
+            foreach (var name in excludeLayers)
+            {
+                int layer = LayerMask.NameToLayer(name);
+                if (layer != -1)
+                {
+                    excludeMask |= (1 << layer);
+                }
+            }
+
+            int groundMask = ~excludeMask;
+
+            // Cast from 2.0m above search position downwards
+            Vector3 rayStart = new Vector3(searchPos.x, searchPos.y + 2.0f, searchPos.z);
+            RaycastHit[] hits = Physics.RaycastAll(rayStart, Vector3.down, 6.0f, groundMask, QueryTriggerInteraction.Ignore);
+
+            float bestY = float.MinValue;
+            bool foundValid = false;
+
+            // If referenceGroundY is provided, ground cannot be > 0.4m higher than reference
+            float maxY = !float.IsNaN(referenceGroundY) ? referenceGroundY + 0.4f : searchPos.y + 0.4f;
+
+            foreach (var hit in hits)
+            {
+                if (hit.collider == null || hit.collider.isTrigger) continue;
+
+                // Exclude any collider that belongs to the car or character
+                if (carController != null && (hit.collider.transform.IsChildOf(carController.transform) || hit.collider.transform == carController.transform))
+                    continue;
+
+                if (character != null && (hit.collider.transform.IsChildOf(character.transform) || hit.collider.transform == character.transform))
+                    continue;
+
+                // Ground surface cannot be higher than maxY (e.g. above player's waist / car roof)
+                if (hit.point.y > maxY)
+                    continue;
+
+                // Take the highest valid ground surface below maxY
+                if (hit.point.y > bestY)
+                {
+                    bestY = hit.point.y;
+                    foundValid = true;
+                }
+            }
+
+            if (foundValid)
+            {
+                groundHeight = bestY;
+                return true;
+            }
+
+            // Fallback 1: Reference ground height
+            if (!float.IsNaN(referenceGroundY))
+            {
+                groundHeight = referenceGroundY;
+                return true;
+            }
+
+            // Fallback 2: Car wheels ground level
+            if (carController != null)
+            {
+                groundHeight = carController.transform.position.y - 0.8f;
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// Smoothly switches active camera to the Malbers Cinemachine 3 HAP camera rig and disables RCC camera.
         /// </summary>
         private void SwitchToHAPCamera()
@@ -725,6 +808,18 @@ namespace Rearview
                 animator.applyRootMotion = false;
             }
 
+            // Immediately disable character colliders to prevent self-collision and raycast hits during entering
+            SetCharacterCollidersEnabled(false);
+
+            // Record character's current ground Y before alignment as reliable reference
+            float currentCharacterGroundY = character != null ? character.transform.position.y : (carController ? carController.transform.position.y - 0.8f : 0f);
+
+            // Ensure character is cleanly unparented in world space before alignment
+            if (character != null && character.transform.parent != null)
+            {
+                character.transform.SetParent(null, true);
+            }
+
             // 2. Pre-align character to startPos (feet firmly on ground, facing into driver door)
             // Mathematical anchor: startPos is calculated from driverSeat (FrontSeat_Left behind Steering_Wheel) so that at the end of Entering_Car
             // the hips land exactly in FrontSeat_Left and hands on Steering_Wheel.
@@ -733,9 +828,13 @@ namespace Rearview
                 Vector3 seatPos = driverSeat ? driverSeat.position : carController.transform.TransformPoint(new Vector3(-0.364f, -0.611f, 0.043f));
                 Vector3 targetPos = seatPos + carController.transform.right * startOffsetFromSeat.x + carController.transform.forward * startOffsetFromSeat.z;
 
-                if (Physics.Raycast(targetPos + Vector3.up * 2.5f, Vector3.down, out RaycastHit hit, 5f, ~LayerMask.GetMask("Player", "Ignore Raycast")))
+                if (TryGetGroundHeight(targetPos, out float groundY, currentCharacterGroundY))
                 {
-                    targetPos.y = hit.point.y;
+                    targetPos.y = groundY;
+                }
+                else
+                {
+                    targetPos.y = currentCharacterGroundY;
                 }
 
                 Quaternion targetRot = Quaternion.Euler(0f, carController.transform.eulerAngles.y + startYawOffset, 0f);
@@ -977,9 +1076,10 @@ namespace Rearview
 
                 // Ground Raycast to ensure feet are firmly on the terrain
                 Vector3 exitPos = character.transform.position;
-                if (Physics.Raycast(exitPos + Vector3.up * 2.5f, Vector3.down, out RaycastHit hit, 10f, ~LayerMask.GetMask("Player", "Ignore Raycast")))
+                float carGroundY = carController ? carController.transform.position.y - 0.8f : exitPos.y;
+                if (TryGetGroundHeight(exitPos, out float groundY, carGroundY))
                 {
-                    exitPos.y = hit.point.y;
+                    exitPos.y = groundY;
                     character.transform.position = exitPos;
                 }
 
@@ -1047,10 +1147,11 @@ namespace Rearview
                 {
                     float doorZ = doorPoint ? carController.transform.InverseTransformPoint(doorPoint.position).z : 0.2f;
                     Vector3 exitPos = carController.transform.TransformPoint(new Vector3(-2.0f, 0f, doorZ));
+                    float carGroundY = carController.transform.position.y - 0.8f;
 
-                    if (Physics.Raycast(exitPos + Vector3.up * 2.5f, Vector3.down, out RaycastHit hit, 10f, ~LayerMask.GetMask("Player", "Ignore Raycast")))
+                    if (TryGetGroundHeight(exitPos, out float groundY, carGroundY))
                     {
-                        exitPos.y = hit.point.y;
+                        exitPos.y = groundY;
                     }
 
                     character.transform.position = exitPos;
@@ -1134,9 +1235,10 @@ namespace Rearview
                 {
                     Vector3 seatPos = driverSeat ? driverSeat.position : carController.transform.TransformPoint(new Vector3(-0.364f, -0.611f, 0.043f));
                     Vector3 targetPos = seatPos + carController.transform.right * startOffsetFromSeat.x + carController.transform.forward * startOffsetFromSeat.z;
-                    if (Physics.Raycast(targetPos + Vector3.up * 2.5f, Vector3.down, out RaycastHit hit, 5f, ~LayerMask.GetMask("Player", "Ignore Raycast")))
+                    float carGroundY = carController.transform.position.y - 0.8f;
+                    if (TryGetGroundHeight(targetPos, out float groundY, carGroundY))
                     {
-                        targetPos.y = hit.point.y;
+                        targetPos.y = groundY;
                     }
                     character.transform.position = targetPos;
                     character.transform.rotation = Quaternion.Euler(0f, carController.transform.eulerAngles.y + startYawOffset, 0f);
@@ -1200,9 +1302,10 @@ namespace Rearview
 
             // 5. Pre-alignment Character Start Position (Magenta/Cyan)
             Vector3 startPos = seatPos + carController.transform.right * startOffsetFromSeat.x + carController.transform.forward * startOffsetFromSeat.z;
-            if (Physics.Raycast(startPos + Vector3.up * 2.5f, Vector3.down, out RaycastHit hit, 5f))
+            float carGroundY = carController.transform.position.y - 0.8f;
+            if (TryGetGroundHeight(startPos, out float groundY, carGroundY))
             {
-                startPos.y = hit.point.y;
+                startPos.y = groundY;
             }
             Gizmos.color = Color.magenta;
             Gizmos.DrawSphere(startPos, 0.2f);
