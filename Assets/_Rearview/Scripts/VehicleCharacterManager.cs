@@ -6,6 +6,8 @@ using UnityEngine.InputSystem;
 #endif
 using MalbersAnimations;
 using MalbersAnimations.Utilities;
+using UnityEngine.Playables;
+using UnityEngine.Animations;
 
 namespace Rearview
 {
@@ -76,8 +78,48 @@ namespace Rearview
 
         [Tooltip("Cooldown in seconds between entering and exiting vehicle to prevent accidental double-triggering.")]
         public float interactCooldown = 0.5f;
+
+        [Header("--- Enter Vehicle Animation ---")]
+        [Tooltip("Animation clip of character entering the car (e.g. Assets/_Rearview/Animations/Y_Bot@Entering_Car.fbx).")]
+        public AnimationClip enterCarClip;
+
+        [Tooltip("Playback speed multiplier for the enter animation (1.0 = normal ~5.5s, 1.25 = ~4.4s).")]
+        [Range(0.5f, 3f)]
+        public float enterAnimSpeed = 1.25f;
+
+        [Tooltip("Duration in seconds to smoothly align character to the driver door before playing animation.")]
+        [Range(0.1f, 1f)]
+        public float alignToDoorDuration = 0.35f;
+
+        [Tooltip("Animation curve for pre-aligning character to the driver door.")]
+        public AnimationCurve alignCurve = new AnimationCurve(new Keyframe(0f, 0f, 0f, 2f), new Keyframe(1f, 1f, 0f, 0f));
+
+        [Header("--- Driver Seat & Animation Alignment ---")]
+        [Tooltip("Transform of the driver seat cushion (FrontSeat_Left in Left-Hand Drive). Auto-found if null.")]
+        public Transform driverSeat;
+
+        [Tooltip("Transform of the steering wheel. Auto-found if null.")]
+        public Transform steeringWheel;
+
+        [Tooltip("Offset from driverSeat to character start position (in car local space: X = lateral left/right, Y = vertical, Z = longitudinal forward/backward). Exact Mixamo delta to Left seat is (-1.86, 0, -0.15).")]
+        public Vector3 startOffsetFromSeat = new Vector3(-1.86f, 0f, -0.15f);
+
+        [Tooltip("Yaw rotation offset in degrees from car heading at start of animation (90 = facing directly into driver door).")]
+        public float startYawOffset = 90f;
+
+        [Header("--- Vehicle Exit Safety ---")]
+        [Tooltip("Maximum vehicle speed (km/h) to allow exiting safely.")]
+        public float maxExitSpeed = 3f;
+
+        [Tooltip("Warning text when trying to exit while car is moving.")]
+        public string carMovingWarningText = "Dừng xe để xuống!";
+
         private float lastInteractTime = -10f;
         private Coroutine exitPromptCoroutine;
+        private Coroutine enterSequenceCoroutine;
+        private Coroutine exitSequenceCoroutine;
+        private PlayableGraph activePlayableGraph;
+        private bool isTransitioning = false;
 
         // Proximity tracking
         private bool isPlayerInRange = false;
@@ -146,7 +188,15 @@ namespace Rearview
 
         private bool CanInteract()
         {
-            return (Time.time - lastInteractTime >= interactCooldown);
+            return !isTransitioning && (Time.time - lastInteractTime >= interactCooldown);
+        }
+
+        private void OnDisable()
+        {
+            if (activePlayableGraph.IsValid())
+            {
+                activePlayableGraph.Destroy();
+            }
         }
 
         private void Awake()
@@ -241,7 +291,53 @@ namespace Rearview
                 }
             }
 
-            // 6. HAP MEvent for Interact UI
+            // 6. Driver Seat & Steering Wheel
+            // In this car model, the driver seat is FrontSeat_Left (behind Steering_Wheel on the left side).
+            // FrontSeat_Right is the passenger seat on the right side.
+            if (carController)
+            {
+                if (driverSeat == null || driverSeat.name == "FrontSeat_Right")
+                {
+                    foreach (var t in carController.GetComponentsInChildren<Transform>(true))
+                    {
+                        if (t.name == "FrontSeat_Left")
+                        {
+                            driverSeat = t;
+                            break;
+                        }
+                    }
+
+                    if (!driverSeat)
+                    {
+                        driverSeat = carController.transform.Find("The_Last_Drive_Car/FrontSeat_Left");
+                    }
+                }
+            }
+
+            if (!steeringWheel && carController)
+            {
+                foreach (var t in carController.GetComponentsInChildren<Transform>(true))
+                {
+                    if (t.name == "Steering_Wheel")
+                    {
+                        steeringWheel = t;
+                        break;
+                    }
+                }
+
+                if (!steeringWheel)
+                {
+                    steeringWheel = carController.transform.Find("The_Last_Drive_Car/Steering_Wheel");
+                }
+            }
+
+            // Auto-heal offset if still carrying previous positive Z offset
+            if (startOffsetFromSeat.z > 0f)
+            {
+                startOffsetFromSeat = new Vector3(-1.86f, 0f, -0.15f);
+            }
+
+            // 7. HAP MEvent for Interact UI
             if (!interactUIEvent)
             {
 #if UNITY_EDITOR
@@ -251,6 +347,38 @@ namespace Rearview
                 if (!interactUIEvent)
                     interactUIEvent = MTools.GetInstance<MalbersAnimations.Events.MEvent>("Interact UI");
             }
+
+            // 8. Enter Car Animation Clip
+#if UNITY_EDITOR
+            if (!enterCarClip)
+            {
+                var subAssets = UnityEditor.AssetDatabase.LoadAllAssetsAtPath("Assets/_Rearview/Animations/Y_Bot@Entering_Car.fbx");
+                foreach (var a in subAssets)
+                {
+                    if (a is AnimationClip clip && !clip.name.StartsWith("__preview__"))
+                    {
+                        enterCarClip = clip;
+                        break;
+                    }
+                }
+            }
+#endif
+        }
+
+        /// <summary>
+        /// Context menu action to quickly auto-wire all references and calibrated offsets in the Inspector.
+        /// </summary>
+        [ContextMenu("Auto Setup References & Offsets")]
+        public void AutoSetupReferencesAndOffsets()
+        {
+            driverSeat = null; // force re-detection of FrontSeat_Left
+            AutoFindReferences();
+            startOffsetFromSeat = new Vector3(-1.86f, 0f, -0.15f);
+            startYawOffset = 90f;
+#if UNITY_EDITOR
+            UnityEditor.EditorUtility.SetDirty(this);
+#endif
+            Debug.Log($"[VehicleCharacterManager] ✅ Đã cấu hình xong: Ghế lái = {(driverSeat ? driverSeat.name : "null")}, Vô lăng = {(steeringWheel ? steeringWheel.name : "null")}, Offset = {startOffsetFromSeat}");
         }
 
         /// <summary>
@@ -427,12 +555,12 @@ namespace Rearview
         }
 
         /// <summary>
-        /// Transfer control to the RCC vehicle.
+        /// Transfer control to the RCC vehicle with smooth alignment and animation.
         /// </summary>
         [ContextMenu("Enter Vehicle")]
         public void EnterVehicle()
         {
-            if (!carController || !CanInteract()) return;
+            if (!carController || !CanInteract() || isTransitioning) return;
 
             lastInteractTime = Time.time;
             HideInteractUI();
@@ -443,8 +571,106 @@ namespace Rearview
                 exitPromptCoroutine = null;
             }
 
+            if (enterSequenceCoroutine != null)
+                StopCoroutine(enterSequenceCoroutine);
+
+            enterSequenceCoroutine = StartCoroutine(EnterVehicleSequence());
+        }
+
+        private IEnumerator EnterVehicleSequence()
+        {
+            isTransitioning = true;
+
+            var animal = character != null ? character.GetComponent<MalbersAnimations.Controller.MAnimal>() : null;
+            var animator = character != null ? character.GetComponent<Animator>() : null;
+
+            // 1. Lock character input & movement so physics don't fight alignment
+            if (animal != null)
+            {
+                animal.LockInput = true;
+                animal.LockMovement = true;
+                if (animal.RB != null)
+                    animal.RB.isKinematic = true;
+                // Temporarily disable MAnimal to prevent OnAnimatorMove from swallowing root motion / fighting bone alignment
+                animal.enabled = false;
+            }
+
+            if (animator != null)
+            {
+                animator.applyRootMotion = false;
+            }
+
+            // 2. Pre-align character to startPos (feet firmly on ground, facing into driver door)
+            // Mathematical anchor: startPos is calculated from driverSeat (FrontSeat_Left behind Steering_Wheel) so that at the end of Entering_Car
+            // the hips land exactly in FrontSeat_Left and hands on Steering_Wheel.
+            if (character && carController)
+            {
+                Vector3 seatPos = driverSeat ? driverSeat.position : carController.transform.TransformPoint(new Vector3(-0.364f, -0.611f, 0.043f));
+                Vector3 targetPos = seatPos + carController.transform.right * startOffsetFromSeat.x + carController.transform.forward * startOffsetFromSeat.z;
+
+                if (Physics.Raycast(targetPos + Vector3.up * 2.5f, Vector3.down, out RaycastHit hit, 5f, ~LayerMask.GetMask("Player", "Ignore Raycast")))
+                {
+                    targetPos.y = hit.point.y;
+                }
+
+                Quaternion targetRot = Quaternion.Euler(0f, carController.transform.eulerAngles.y + startYawOffset, 0f);
+
+                yield return MTools.AlignTransform(character.transform, targetPos, targetRot, alignToDoorDuration, alignCurve);
+            }
+
+            // 3. Play Entering_Car animation via PlayableGraph
+            if (animator != null && enterCarClip != null)
+            {
+                if (activePlayableGraph.IsValid())
+                    activePlayableGraph.Destroy();
+
+                activePlayableGraph = PlayableGraph.Create("EnterCarPlayable");
+                activePlayableGraph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
+
+                var clipPlayable = AnimationClipPlayable.Create(activePlayableGraph, enterCarClip);
+                clipPlayable.SetSpeed(enterAnimSpeed);
+
+                var output = AnimationPlayableOutput.Create(activePlayableGraph, "Animation", animator);
+                output.SetSourcePlayable(clipPlayable);
+
+                activePlayableGraph.Play();
+
+                float totalDuration = enterCarClip.length / enterAnimSpeed;
+                float elapsed = 0f;
+                bool cameraSwitched = false;
+
+                while (elapsed < totalDuration)
+                {
+                    elapsed += Time.deltaTime;
+
+                    // Near the end of animation (~80%, when character is inside the cabin), switch camera to car
+                    if (!cameraSwitched && elapsed >= totalDuration * 0.8f)
+                    {
+                        cameraSwitched = true;
+                        SwitchToRCCCamera();
+                    }
+
+                    yield return null;
+                }
+
+                if (activePlayableGraph.IsValid())
+                {
+                    activePlayableGraph.Destroy();
+                }
+            }
+            else
+            {
+                // Fallback if no animation clip is present
+                yield return new WaitForSeconds(0.3f);
+                SwitchToRCCCamera();
+            }
+
+            // 4. Finalize in-vehicle state
             currentState = ControlState.InVehicle;
             ApplyInVehicleState(false);
+
+            isTransitioning = false;
+            enterSequenceCoroutine = null;
 
             if (showExitPrompt)
             {
@@ -464,12 +690,20 @@ namespace Rearview
         }
 
         /// <summary>
-        /// Transfer control back to the HAP character.
+        /// Transfer control back to the HAP character with safety checks and clean handover.
         /// </summary>
         [ContextMenu("Exit Vehicle")]
         public void ExitVehicle()
         {
-            if (!carController || !character || !CanInteract()) return;
+            if (!carController || !character || !CanInteract() || isTransitioning) return;
+
+            // Safety check: Vehicle must be almost stopped to exit safely
+            if (carController.speed > maxExitSpeed)
+            {
+                ShowInteractUI(carMovingWarningText);
+                StartCoroutine(HidePromptAfterDelay(2f));
+                return;
+            }
 
             if (exitPromptCoroutine != null)
             {
@@ -479,8 +713,115 @@ namespace Rearview
 
             lastInteractTime = Time.time;
             HideInteractUI();
+
+            if (exitSequenceCoroutine != null)
+                StopCoroutine(exitSequenceCoroutine);
+
+            exitSequenceCoroutine = StartCoroutine(ExitVehicleSequence());
+        }
+
+        private IEnumerator HidePromptAfterDelay(float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            if (currentState == ControlState.InVehicle)
+            {
+                HideInteractUI();
+            }
+        }
+
+        private IEnumerator ExitVehicleSequence()
+        {
+            isTransitioning = true;
+
+            // 1. Immediately cut engine and apply handbrake
+            if (carController)
+            {
+                carController.SetCanControl(false);
+                carController.handbrakeInput = 1f;
+                carController.KillEngine();
+            }
+
+            // 2. Position character safely to the left of the car at ground level
+            if (carController && character)
+            {
+                float doorZ = doorPoint ? carController.transform.InverseTransformPoint(doorPoint.position).z : 0.2f;
+                Vector3 exitPos = carController.transform.TransformPoint(new Vector3(-2.0f, 0f, doorZ));
+
+                if (Physics.Raycast(exitPos + Vector3.up * 2.5f, Vector3.down, out RaycastHit hit, 10f))
+                {
+                    exitPos.y = hit.point.y;
+                }
+
+                character.transform.position = exitPos;
+                character.transform.rotation = Quaternion.Euler(0f, carController.transform.eulerAngles.y, 0f);
+            }
+
+            // 3. Enable character & restore physics
+            if (character)
+            {
+                character.SetActive(true);
+                var animal = character.GetComponent<MalbersAnimations.Controller.MAnimal>();
+                if (animal != null)
+                {
+                    animal.enabled = true;
+                    animal.LockInput = false;
+                    animal.LockMovement = false;
+                    if (animal.RB != null)
+                        animal.RB.isKinematic = false;
+                }
+            }
+
+            // 4. Switch cameras back to HAP Cinemachine
+            if (rccCamera)
+            {
+                rccCamera.isRendering = false;
+                if (rccCamera.actualCamera)
+                {
+                    rccCamera.actualCamera.gameObject.SetActive(false);
+                    var listener = rccCamera.actualCamera.GetComponent<AudioListener>();
+                    if (listener) listener.enabled = false;
+                }
+            }
+
+            if (hapCameraRig)
+            {
+                hapCameraRig.SetActive(true);
+                var animal = character ? character.GetComponent<MalbersAnimations.Controller.MAnimal>() : null;
+                var hapCam = hapCameraRig.GetComponentInChildren<Camera>(false);
+                if (hapCam != null)
+                {
+                    hapCam.tag = "MainCamera";
+                    if (animal != null)
+                    {
+                        animal.m_MainCamera.UseConstant = true;
+                        animal.m_MainCamera.Value = hapCam.transform;
+                    }
+                }
+            }
+
             currentState = ControlState.OnFoot;
-            ApplyOnFootState(false);
+            isTransitioning = false;
+            exitSequenceCoroutine = null;
+            yield return null;
+        }
+
+        private void SwitchToRCCCamera()
+        {
+            if (hapCameraRig)
+                hapCameraRig.SetActive(false);
+
+            if (rccCamera)
+            {
+                rccCamera.isRendering = true;
+                if (rccCamera.actualCamera)
+                {
+                    rccCamera.actualCamera.gameObject.SetActive(true);
+                    rccCamera.actualCamera.tag = "MainCamera";
+                    var listener = rccCamera.actualCamera.GetComponent<AudioListener>();
+                    if (listener) listener.enabled = true;
+                }
+                rccCamera.SetTarget(carController);
+            }
         }
 
         private void ApplyOnFootState(bool isInit)
@@ -504,7 +845,18 @@ namespace Rearview
 
             // 2. Enable Character
             if (character)
+            {
                 character.SetActive(true);
+                var animal = character.GetComponent<MalbersAnimations.Controller.MAnimal>();
+                if (animal != null)
+                {
+                    animal.enabled = true;
+                    animal.LockInput = false;
+                    animal.LockMovement = false;
+                    if (animal.RB != null)
+                        animal.RB.isKinematic = false;
+                }
+            }
 
             // 3. Enable HAP Camera Rig
             if (hapCameraRig)
@@ -553,25 +905,10 @@ namespace Rearview
             if (character)
                 character.SetActive(false);
 
-            // 2. Disable HAP Camera Rig (disables CinemachineBrain & AudioListener)
-            if (hapCameraRig)
-                hapCameraRig.SetActive(false);
+            // 2. Enable RCC Camera
+            SwitchToRCCCamera();
 
-            // 3. Enable RCC Camera
-            if (rccCamera)
-            {
-                rccCamera.isRendering = true;
-                if (rccCamera.actualCamera)
-                {
-                    rccCamera.actualCamera.gameObject.SetActive(true);
-                    rccCamera.actualCamera.tag = "MainCamera";
-                    var listener = rccCamera.actualCamera.GetComponent<AudioListener>();
-                    if (listener) listener.enabled = true;
-                }
-                rccCamera.SetTarget(carController);
-            }
-
-            // 4. Enable Car control, release handbrake, start engine
+            // 3. Enable Car control, release handbrake, start engine
             if (carController)
             {
                 carController.SetCanControl(true);
@@ -582,16 +919,45 @@ namespace Rearview
 
         private void OnDrawGizmosSelected()
         {
-            if (carController)
-            {
-                Vector3 center = doorPoint ? doorPoint.position : carController.transform.position;
-                Gizmos.color = new Color(0f, 1f, 0.4f, 0.5f);
-                Gizmos.DrawWireSphere(center, interactionDistance);
+            if (!carController) return;
 
-                Vector3 defaultDoor = carController.transform.TransformPoint(new Vector3(-1.15f, 0.9f, 0.2f));
-                Gizmos.color = Color.yellow;
-                Gizmos.DrawSphere(doorPoint ? doorPoint.position : defaultDoor, 0.25f);
+            // 1. Interaction distance wire sphere around doorPoint
+            Vector3 center = doorPoint ? doorPoint.position : carController.transform.position;
+            Gizmos.color = new Color(0f, 1f, 0.4f, 0.3f);
+            Gizmos.DrawWireSphere(center, interactionDistance);
+
+            // 2. Door_Driver anchor
+            Vector3 defaultDoor = carController.transform.TransformPoint(new Vector3(-1.15f, 0.9f, 0.2f));
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawSphere(doorPoint ? doorPoint.position : defaultDoor, 0.15f);
+
+            // 3. Driver Seat Cushion (Green) - FrontSeat_Left behind Steering_Wheel
+            Vector3 seatPos = driverSeat ? driverSeat.position : carController.transform.TransformPoint(new Vector3(-0.364f, -0.611f, 0.043f));
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireSphere(seatPos, 0.2f);
+
+            // 4. Steering Wheel (Cyan)
+            Vector3 wheelPos = steeringWheel ? steeringWheel.position : carController.transform.TransformPoint(new Vector3(-0.358f, 0.129f, 0.396f));
+            Gizmos.color = Color.cyan;
+            Gizmos.DrawWireSphere(wheelPos, 0.18f);
+
+            // 5. Pre-alignment Character Start Position (Magenta/Cyan)
+            Vector3 startPos = seatPos + carController.transform.right * startOffsetFromSeat.x + carController.transform.forward * startOffsetFromSeat.z;
+            if (Physics.Raycast(startPos + Vector3.up * 2.5f, Vector3.down, out RaycastHit hit, 5f))
+            {
+                startPos.y = hit.point.y;
             }
+            Gizmos.color = Color.magenta;
+            Gizmos.DrawSphere(startPos, 0.2f);
+
+            // 6. Character start facing direction (Yellow arrow pointing towards driver door)
+            Vector3 startFwd = Quaternion.Euler(0f, carController.transform.eulerAngles.y + startYawOffset, 0f) * Vector3.forward;
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawRay(startPos + Vector3.up * 0.5f, startFwd * 1.0f);
+
+            // 7. Trajectory line from startPos to seatPos
+            Gizmos.color = new Color(0.2f, 0.8f, 1f, 0.7f);
+            Gizmos.DrawLine(startPos + Vector3.up * 0.5f, seatPos + Vector3.up * 0.5f);
         }
     }
 }

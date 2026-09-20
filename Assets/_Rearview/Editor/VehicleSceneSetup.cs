@@ -169,6 +169,52 @@ namespace Rearview.Editor
                 Debug.Log("[VehicleSceneSetup] ✅ Đã tạo GameObject _VehicleCharacterManager.");
             }
 
+            // 8. Find Enter Car Animation Clip
+            AnimationClip enterCarClip = null;
+            var subAssets = AssetDatabase.LoadAllAssetsAtPath("Assets/_Rearview/Animations/Y_Bot@Entering_Car.fbx");
+            foreach (var a in subAssets)
+            {
+                if (a is AnimationClip clip && !clip.name.StartsWith("__preview__"))
+                {
+                    enterCarClip = clip;
+                    break;
+                }
+            }
+
+            // 9. Find Driver Seat (FrontSeat_Left behind Steering_Wheel) and Steering Wheel
+            Transform driverSeat = null;
+            Transform steeringWheel = null;
+            if (car != null)
+            {
+                foreach (var t in car.GetComponentsInChildren<Transform>(true))
+                {
+                    if (t.name == "FrontSeat_Left")
+                    {
+                        driverSeat = t;
+                        break;
+                    }
+                }
+
+                if (driverSeat == null)
+                {
+                    driverSeat = car.transform.Find("The_Last_Drive_Car/FrontSeat_Left");
+                }
+
+                foreach (var t in car.GetComponentsInChildren<Transform>(true))
+                {
+                    if (t.name == "Steering_Wheel")
+                    {
+                        steeringWheel = t;
+                        break;
+                    }
+                }
+
+                if (steeringWheel == null)
+                {
+                    steeringWheel = car.transform.Find("The_Last_Drive_Car/Steering_Wheel");
+                }
+            }
+
             // Assign all references
             Undo.RecordObject(manager, "Configure VehicleCharacterManager");
             manager.carController = car;
@@ -176,7 +222,16 @@ namespace Rearview.Editor
             manager.character = character;
             manager.hapCameraRig = hapCameraRig;
             manager.doorPoint = doorPoint;
+            manager.driverSeat = driverSeat;
+            manager.steeringWheel = steeringWheel;
+            manager.startOffsetFromSeat = new Vector3(-1.86f, 0f, -0.15f);
+            manager.startYawOffset = 90f;
             manager.interactUIEvent = interactUIEvent;
+            manager.enterCarClip = enterCarClip;
+            manager.enterAnimSpeed = 1.25f;
+            manager.alignToDoorDuration = 0.35f;
+            manager.maxExitSpeed = 3f;
+            manager.carMovingWarningText = "Dừng xe để xuống!";
             manager.currentState = VehicleCharacterManager.ControlState.OnFoot;
             manager.enterPromptText = "Lên Xe";
             manager.exitPromptText = "Xuống Xe";
@@ -190,14 +245,18 @@ namespace Rearview.Editor
 
             string msg = $"🎉 Setup hoàn tất!\n\n" +
                          $"• Xe: {(car ? car.name : "Chưa tìm thấy")}\n" +
+                         $"• Ghế Lái (FrontSeat_Left): {(driverSeat ? driverSeat.name : "Chưa tìm thấy")}\n" +
+                         $"• Vô Lăng (Steering_Wheel): {(steeringWheel ? steeringWheel.name : "Chưa tìm thấy")}\n" +
                          $"• Điểm cửa Door_Driver: {(doorPoint ? "Đã gán" : "Chưa có")}\n" +
                          $"• RCC Camera: {(rccCam ? rccCam.name : "Chưa tìm thấy")}\n" +
                          $"• Nhân vật: {(character ? character.name : "Chưa tìm thấy")}\n" +
                          $"• Camera HAP: {(hapCameraRig ? hapCameraRig.name : "Chưa tìm thấy")}\n" +
                          $"• HAP Interact UI: {(interactUIInstance ? "Đã cài đặt trên UI_Canvas" : "Chưa có")}\n" +
                          $"• MEvent: {(interactUIEvent ? "Đã gán Interact UI.asset" : "Chưa gán")}\n" +
+                         $"• Animation Vào Xe: {(enterCarClip ? enterCarClip.name : "Chưa có")}\n" +
+                         $"• Canh chỉnh ghế: Offset ({manager.startOffsetFromSeat.x:F2}, {manager.startOffsetFromSeat.y:F2}, {manager.startOffsetFromSeat.z:F2}), Yaw {manager.startYawOffset}°\n" +
                          $"• EventSystem: {(eventSystem ? "Đã sẵn sàng" : "Chưa có")}\n\n" +
-                         $"Trạng thái ban đầu: OnFoot (Nhân vật đi bộ, xe tắt máy chờ). Đến gần xe sẽ hiện UI của HAP, bấm [E] để lên xe!";
+                         $"Trạng thái ban đầu: OnFoot (Nhân vật đi bộ, xe tắt máy chờ). Đến gần xe sẽ hiện UI của HAP, bấm [E] để kích hoạt animation bước vào xe và ngồi khớp chuẩn xác vào ghế lái (FrontSeat_Left) sau vô lăng!";
 
             EditorUtility.DisplayDialog("Rearview - Setup Thành Công", msg, "OK");
             Debug.Log($"[VehicleSceneSetup] {msg}");
