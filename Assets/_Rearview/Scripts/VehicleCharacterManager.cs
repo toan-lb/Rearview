@@ -142,6 +142,8 @@ namespace Rearview
         private Coroutine enterSequenceCoroutine;
         private Coroutine exitSequenceCoroutine;
         private PlayableGraph activePlayableGraph;
+        private AnimationClipPlayable clipPlayable;
+        private Collider[] characterColliders;
         private bool isTransitioning = false;
 
         // Proximity tracking
@@ -224,6 +226,77 @@ namespace Rearview
             if (driverDoor != null && initialDoorLocalRotation != Quaternion.identity)
             {
                 driverDoor.localRotation = initialDoorLocalRotation;
+            }
+
+            // Safety cleanup if disabled while in vehicle
+            if (character != null)
+            {
+                SetCharacterCollidersEnabled(true);
+                if (carController != null && character.transform.parent == carController.transform)
+                {
+                    character.transform.SetParent(null, true);
+                }
+                var animal = character.GetComponent<MalbersAnimations.Controller.MAnimal>();
+                if (animal != null && animal.RB != null)
+                {
+                    animal.RB.isKinematic = false;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Enables or disables all colliders on the character and its children to strictly prevent
+        /// PhysX compound collider conflicts with RCC vehicle while seated.
+        /// </summary>
+        private void SetCharacterCollidersEnabled(bool isEnabled)
+        {
+            if (characterColliders == null && character != null)
+            {
+                characterColliders = character.GetComponentsInChildren<Collider>(true);
+            }
+
+            if (characterColliders != null)
+            {
+                foreach (var col in characterColliders)
+                {
+                    if (col != null)
+                    {
+                        col.enabled = isEnabled;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Smoothly switches active camera to the Malbers Cinemachine 3 HAP camera rig and disables RCC camera.
+        /// </summary>
+        private void SwitchToHAPCamera()
+        {
+            if (rccCamera)
+            {
+                rccCamera.isRendering = false;
+                if (rccCamera.actualCamera)
+                {
+                    rccCamera.actualCamera.gameObject.SetActive(false);
+                    var listener = rccCamera.actualCamera.GetComponent<AudioListener>();
+                    if (listener) listener.enabled = false;
+                }
+            }
+
+            if (hapCameraRig)
+            {
+                hapCameraRig.SetActive(true);
+                var hapCam = hapCameraRig.GetComponentInChildren<Camera>(false);
+                if (hapCam != null)
+                {
+                    hapCam.tag = "MainCamera";
+                    var animal = character ? character.GetComponent<MalbersAnimations.Controller.MAnimal>() : null;
+                    if (animal != null)
+                    {
+                        animal.m_MainCamera.UseConstant = true;
+                        animal.m_MainCamera.Value = hapCam.transform;
+                    }
+                }
             }
         }
 
@@ -679,8 +752,8 @@ namespace Rearview
                 activePlayableGraph = PlayableGraph.Create("EnterCarPlayable");
                 activePlayableGraph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
 
-                var clipPlayable = AnimationClipPlayable.Create(activePlayableGraph, enterCarClip);
-                clipPlayable.SetSpeed(enterAnimSpeed);
+                clipPlayable = AnimationClipPlayable.Create(activePlayableGraph, enterCarClip);
+                clipPlayable.SetSpeed(0f); // manual normalized time control
 
                 var output = AnimationPlayableOutput.Create(activePlayableGraph, "Animation", animator);
                 output.SetSourcePlayable(clipPlayable);
@@ -701,6 +774,11 @@ namespace Rearview
                 {
                     elapsed += Time.deltaTime;
                     float normalizedTime = Mathf.Clamp01(elapsed / totalDuration);
+
+                    if (clipPlayable.IsValid())
+                    {
+                        clipPlayable.SetTime(normalizedTime * enterCarClip.length);
+                    }
 
                     // Animate driver door opening/closing based on calibrated curve
                     if (driverDoor != null && doorOpenCurve != null)
@@ -726,9 +804,10 @@ namespace Rearview
                     driverDoor.localRotation = initialDoorLocalRotation;
                 }
 
-                if (activePlayableGraph.IsValid())
+                // Hold final frame (seated driving pose with hands on steering wheel)
+                if (clipPlayable.IsValid())
                 {
-                    activePlayableGraph.Destroy();
+                    clipPlayable.SetTime(enterCarClip.length);
                 }
             }
             else
@@ -806,7 +885,7 @@ namespace Rearview
         {
             isTransitioning = true;
 
-            // 1. Immediately cut engine and apply handbrake
+            // 1. Immediately cut engine, disallow control, and apply handbrake
             if (carController)
             {
                 carController.SetCanControl(false);
@@ -814,68 +893,125 @@ namespace Rearview
                 carController.KillEngine();
             }
 
-            // 2. Position character safely to the left of the car at ground level
-            if (carController && character)
-            {
-                float doorZ = doorPoint ? carController.transform.InverseTransformPoint(doorPoint.position).z : 0.2f;
-                Vector3 exitPos = carController.transform.TransformPoint(new Vector3(-2.0f, 0f, doorZ));
+            var animator = character != null ? character.GetComponent<Animator>() : null;
 
-                if (Physics.Raycast(exitPos + Vector3.up * 2.5f, Vector3.down, out RaycastHit hit, 10f))
+            // 2. Play reverse animation from Frame 165 down to Frame 0
+            if (animator != null && enterCarClip != null)
+            {
+                if (!activePlayableGraph.IsValid())
                 {
-                    exitPos.y = hit.point.y;
+                    activePlayableGraph = PlayableGraph.Create("EnterCarPlayable");
+                    activePlayableGraph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
+
+                    clipPlayable = AnimationClipPlayable.Create(activePlayableGraph, enterCarClip);
+                    clipPlayable.SetSpeed(0f);
+
+                    var output = AnimationPlayableOutput.Create(activePlayableGraph, "Animation", animator);
+                    output.SetSourcePlayable(clipPlayable);
+
+                    activePlayableGraph.Play();
                 }
 
-                character.transform.position = exitPos;
-                character.transform.rotation = Quaternion.Euler(0f, carController.transform.eulerAngles.y, 0f);
+                float totalDuration = enterCarClip.length / enterAnimSpeed;
+                float elapsed = 0f;
+                bool cameraSwitched = false;
+
+                if (driverDoor != null)
+                {
+                    initialDoorLocalRotation = driverDoor.localRotation;
+                }
+
+                while (elapsed < totalDuration)
+                {
+                    elapsed += Time.deltaTime;
+                    // Normalized time runs backwards: 1.0 (seated) down to 0.0 (standing outside)
+                    float normalizedTime = 1f - Mathf.Clamp01(elapsed / totalDuration);
+
+                    if (clipPlayable.IsValid())
+                    {
+                        clipPlayable.SetTime(normalizedTime * enterCarClip.length);
+                    }
+
+                    // Animate driver door opening from inside, staying open, and shutting
+                    if (driverDoor != null && doorOpenCurve != null)
+                    {
+                        float curveVal = doorOpenCurve.Evaluate(normalizedTime);
+                        float currentAngle = curveVal * doorMaxOpenAngle;
+                        driverDoor.localRotation = initialDoorLocalRotation * Quaternion.AngleAxis(currentAngle, doorRotationAxis);
+                    }
+
+                    // Switch camera to HAP early in the exit sequence (~15%, when door begins cracking open)
+                    if (!cameraSwitched && elapsed >= totalDuration * 0.15f)
+                    {
+                        cameraSwitched = true;
+                        SwitchToHAPCamera();
+                    }
+
+                    yield return null;
+                }
+
+                // Ensure door is firmly shut at the end of exit
+                if (driverDoor != null)
+                {
+                    driverDoor.localRotation = initialDoorLocalRotation;
+                }
+
+                // Clean up PlayableGraph so AnimatorController resumes on-foot locomotion
+                if (activePlayableGraph.IsValid())
+                {
+                    activePlayableGraph.Destroy();
+                }
+            }
+            else
+            {
+                // Fallback if no animation clip is present
+                yield return new WaitForSeconds(0.3f);
+                SwitchToHAPCamera();
             }
 
-            // 3. Enable character & restore physics
+            // 3. Unparent character from vehicle and restore full on-foot physics & control
             if (character)
             {
-                character.SetActive(true);
+                // Unparent preserving world position
+                character.transform.SetParent(null, true);
+
+                // Ground Raycast to ensure feet are firmly on the terrain
+                Vector3 exitPos = character.transform.position;
+                if (Physics.Raycast(exitPos + Vector3.up * 2.5f, Vector3.down, out RaycastHit hit, 10f, ~LayerMask.GetMask("Player", "Ignore Raycast")))
+                {
+                    exitPos.y = hit.point.y;
+                    character.transform.position = exitPos;
+                }
+
+                // Re-enable colliders
+                SetCharacterCollidersEnabled(true);
+
+                // Restore MAnimal & Rigidbody dynamics
                 var animal = character.GetComponent<MalbersAnimations.Controller.MAnimal>();
                 if (animal != null)
                 {
+                    if (animal.RB != null)
+                    {
+                        animal.RB.isKinematic = false;
+                        animal.RB.detectCollisions = true;
+                    }
                     animal.enabled = true;
                     animal.LockInput = false;
                     animal.LockMovement = false;
-                    if (animal.RB != null)
-                        animal.RB.isKinematic = false;
+                }
+
+                if (animator != null)
+                {
+                    animator.applyRootMotion = false;
                 }
             }
 
-            // 4. Switch cameras back to HAP Cinemachine
-            if (rccCamera)
-            {
-                rccCamera.isRendering = false;
-                if (rccCamera.actualCamera)
-                {
-                    rccCamera.actualCamera.gameObject.SetActive(false);
-                    var listener = rccCamera.actualCamera.GetComponent<AudioListener>();
-                    if (listener) listener.enabled = false;
-                }
-            }
-
-            if (hapCameraRig)
-            {
-                hapCameraRig.SetActive(true);
-                var animal = character ? character.GetComponent<MalbersAnimations.Controller.MAnimal>() : null;
-                var hapCam = hapCameraRig.GetComponentInChildren<Camera>(false);
-                if (hapCam != null)
-                {
-                    hapCam.tag = "MainCamera";
-                    if (animal != null)
-                    {
-                        animal.m_MainCamera.UseConstant = true;
-                        animal.m_MainCamera.Value = hapCam.transform;
-                    }
-                }
-            }
+            // Ensure HAP camera is active
+            SwitchToHAPCamera();
 
             currentState = ControlState.OnFoot;
             isTransitioning = false;
             exitSequenceCoroutine = null;
-            yield return null;
         }
 
         private void SwitchToRCCCamera()
@@ -899,71 +1035,62 @@ namespace Rearview
 
         private void ApplyOnFootState(bool isInit)
         {
-            // 1. Position character safely to the left of the car
-            if (!isInit && carController && character)
-            {
-                // Offset 2.0m to the left of the car centerline, at driver door Z
-                float doorZ = doorPoint ? carController.transform.InverseTransformPoint(doorPoint.position).z : 0.2f;
-                Vector3 exitPos = carController.transform.TransformPoint(new Vector3(-2.0f, 0f, doorZ));
-
-                // Raycast downward to place feet securely on the ground
-                if (Physics.Raycast(exitPos + Vector3.up * 2.5f, Vector3.down, out RaycastHit hit, 10f))
-                {
-                    exitPos.y = hit.point.y;
-                }
-
-                character.transform.position = exitPos;
-                character.transform.rotation = Quaternion.Euler(0f, carController.transform.eulerAngles.y, 0f);
-            }
-
-            // 2. Enable Character
+            // 1. Unparent character and position safely to the left of the car if needed
             if (character)
             {
+                if (carController != null && character.transform.parent == carController.transform)
+                {
+                    character.transform.SetParent(null, true);
+                }
+
+                if (!isInit && carController)
+                {
+                    float doorZ = doorPoint ? carController.transform.InverseTransformPoint(doorPoint.position).z : 0.2f;
+                    Vector3 exitPos = carController.transform.TransformPoint(new Vector3(-2.0f, 0f, doorZ));
+
+                    if (Physics.Raycast(exitPos + Vector3.up * 2.5f, Vector3.down, out RaycastHit hit, 10f, ~LayerMask.GetMask("Player", "Ignore Raycast")))
+                    {
+                        exitPos.y = hit.point.y;
+                    }
+
+                    character.transform.position = exitPos;
+                    character.transform.rotation = Quaternion.Euler(0f, carController.transform.eulerAngles.y, 0f);
+                }
+
+                // 2. Enable Character & restore physics
                 character.SetActive(true);
+                SetCharacterCollidersEnabled(true);
+
                 var animal = character.GetComponent<MalbersAnimations.Controller.MAnimal>();
                 if (animal != null)
                 {
+                    if (animal.RB != null)
+                    {
+                        animal.RB.isKinematic = false;
+                        animal.RB.detectCollisions = true;
+                    }
                     animal.enabled = true;
                     animal.LockInput = false;
                     animal.LockMovement = false;
-                    if (animal.RB != null)
-                        animal.RB.isKinematic = false;
                 }
-            }
 
-            // 3. Enable HAP Camera Rig
-            if (hapCameraRig)
-                hapCameraRig.SetActive(true);
-
-            // 4. Disable RCC Camera (and its AudioListener to avoid conflicts)
-            if (rccCamera)
-            {
-                rccCamera.isRendering = false;
-                if (rccCamera.actualCamera)
+                var animator = character.GetComponent<Animator>();
+                if (animator != null)
                 {
-                    rccCamera.actualCamera.gameObject.SetActive(false);
-                    var listener = rccCamera.actualCamera.GetComponent<AudioListener>();
-                    if (listener) listener.enabled = false;
+                    animator.applyRootMotion = false;
                 }
             }
 
-            // 5. Ensure MAnimal uses the correct Cinemachine camera direction (prevents confused movement)
-            if (character && hapCameraRig)
+            // Clean up any remaining PlayableGraph
+            if (activePlayableGraph.IsValid())
             {
-                var animal = character.GetComponent<MalbersAnimations.Controller.MAnimal>();
-                var hapCam = hapCameraRig.GetComponentInChildren<Camera>(false);
-                if (hapCam != null)
-                {
-                    hapCam.tag = "MainCamera";
-                    if (animal != null)
-                    {
-                        animal.m_MainCamera.UseConstant = true;
-                        animal.m_MainCamera.Value = hapCam.transform;
-                    }
-                }
+                activePlayableGraph.Destroy();
             }
 
-            // 6. Disable Car control, engage handbrake, shut off engine
+            // 3. Enable HAP Camera Rig & disable RCC Camera
+            SwitchToHAPCamera();
+
+            // 4. Disable Car control, engage handbrake, shut off engine
             if (carController)
             {
                 carController.SetCanControl(false);
@@ -974,9 +1101,66 @@ namespace Rearview
 
         private void ApplyInVehicleState(bool isInit)
         {
-            // 1. Disable Character (cleanly disables physics, input, animation)
-            if (character)
-                character.SetActive(false);
+            // 1. Keep Character ENABLED, but parent to car and disable colliders/physics
+            if (character && carController)
+            {
+                character.SetActive(true);
+
+                // Disable all colliders on character to protect RCC compound collider
+                SetCharacterCollidersEnabled(false);
+
+                // Disable MAnimal & set Rigidbody to kinematic
+                var animal = character.GetComponent<MalbersAnimations.Controller.MAnimal>();
+                if (animal != null)
+                {
+                    animal.LockInput = true;
+                    animal.LockMovement = true;
+                    if (animal.RB != null)
+                    {
+                        animal.RB.isKinematic = true;
+                        animal.RB.detectCollisions = false;
+                    }
+                    animal.enabled = false;
+                }
+
+                var animator = character.GetComponent<Animator>();
+                if (animator != null)
+                {
+                    animator.applyRootMotion = false;
+                }
+
+                // If initializing directly into vehicle state:
+                if (isInit)
+                {
+                    Vector3 seatPos = driverSeat ? driverSeat.position : carController.transform.TransformPoint(new Vector3(-0.364f, -0.611f, 0.043f));
+                    Vector3 targetPos = seatPos + carController.transform.right * startOffsetFromSeat.x + carController.transform.forward * startOffsetFromSeat.z;
+                    if (Physics.Raycast(targetPos + Vector3.up * 2.5f, Vector3.down, out RaycastHit hit, 5f, ~LayerMask.GetMask("Player", "Ignore Raycast")))
+                    {
+                        targetPos.y = hit.point.y;
+                    }
+                    character.transform.position = targetPos;
+                    character.transform.rotation = Quaternion.Euler(0f, carController.transform.eulerAngles.y + startYawOffset, 0f);
+
+                    if (animator != null && enterCarClip != null)
+                    {
+                        if (activePlayableGraph.IsValid()) activePlayableGraph.Destroy();
+                        activePlayableGraph = PlayableGraph.Create("EnterCarPlayable");
+                        activePlayableGraph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
+
+                        clipPlayable = AnimationClipPlayable.Create(activePlayableGraph, enterCarClip);
+                        clipPlayable.SetSpeed(0f);
+                        clipPlayable.SetTime(enterCarClip.length);
+
+                        var output = AnimationPlayableOutput.Create(activePlayableGraph, "Animation", animator);
+                        output.SetSourcePlayable(clipPlayable);
+
+                        activePlayableGraph.Play();
+                    }
+                }
+
+                // Parent character to car so it follows vehicle motion, tilting, and suspension
+                character.transform.SetParent(carController.transform, true);
+            }
 
             // 2. Enable RCC Camera
             SwitchToRCCCamera();
