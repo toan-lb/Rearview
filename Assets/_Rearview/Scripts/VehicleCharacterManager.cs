@@ -101,8 +101,8 @@ namespace Rearview
         [Tooltip("Transform of the steering wheel. Auto-found if null.")]
         public Transform steeringWheel;
 
-        [Tooltip("Offset from driverSeat to character start position (in car local space: X = lateral left/right, Y = vertical, Z = longitudinal forward/backward). Exact Mixamo delta to Left seat is (-1.86, 0, -0.15).")]
-        public Vector3 startOffsetFromSeat = new Vector3(-1.86f, 0f, -0.15f);
+        [Tooltip("Offset from driverSeat to character start position (in car local space: X = lateral left/right, Y = vertical, Z = longitudinal forward/backward). Calibrated so character localPosition.z in car is exactly 0.04.")]
+        public Vector3 startOffsetFromSeat = new Vector3(-1.86f, 0f, -0.00265f);
 
         [Tooltip("Yaw rotation offset in degrees from car heading at start of animation (90 = facing directly into driver door).")]
         public float startYawOffset = 90f;
@@ -515,12 +515,6 @@ namespace Rearview
                 }
             }
 
-            // Auto-heal offset if still carrying previous positive Z offset
-            if (startOffsetFromSeat.z > 0f)
-            {
-                startOffsetFromSeat = new Vector3(-1.86f, 0f, -0.15f);
-            }
-
             // 7. Driver Door (Byton_Optimazile_LookDev_SK_FD_Left)
             if (!driverDoor && carController)
             {
@@ -581,7 +575,7 @@ namespace Rearview
             driverSeat = null; // force re-detection of FrontSeat_Left
             driverDoor = null; // force re-detection of Byton_Optimazile_LookDev_SK_FD_Left
             AutoFindReferences();
-            startOffsetFromSeat = new Vector3(-1.86f, 0f, -0.15f);
+            startOffsetFromSeat = new Vector3(-1.86f, 0f, -0.00265f);
             startYawOffset = 90f;
 #if UNITY_EDITOR
             UnityEditor.EditorUtility.SetDirty(this);

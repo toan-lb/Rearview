@@ -245,7 +245,7 @@ namespace Rearview.Editor
             manager.steeringWheel = steeringWheel;
             manager.driverDoor = driverDoor;
             manager.doorMaxOpenAngle = 55f;
-            manager.startOffsetFromSeat = new Vector3(-1.86f, 0f, -0.15f);
+            manager.startOffsetFromSeat = new Vector3(-1.86f, 0f, -0.00265f);
             manager.startYawOffset = 90f;
             manager.interactUIEvent = interactUIEvent;
             manager.enterCarClip = enterCarClip;
