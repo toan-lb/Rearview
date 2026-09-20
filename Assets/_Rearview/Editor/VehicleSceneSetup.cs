@@ -215,6 +215,25 @@ namespace Rearview.Editor
                 }
             }
 
+            // 10. Find Driver Door (Byton_Optimazile_LookDev_SK_FD_Left)
+            Transform driverDoor = null;
+            if (car != null)
+            {
+                foreach (var t in car.GetComponentsInChildren<Transform>(true))
+                {
+                    if (t.name == "Byton_Optimazile_LookDev_SK_FD_Left")
+                    {
+                        driverDoor = t;
+                        break;
+                    }
+                }
+
+                if (driverDoor == null)
+                {
+                    driverDoor = car.transform.Find("The_Last_Drive_Car/Byton_Optimazile_LookDev_SK_FD_Left");
+                }
+            }
+
             // Assign all references
             Undo.RecordObject(manager, "Configure VehicleCharacterManager");
             manager.carController = car;
@@ -224,6 +243,8 @@ namespace Rearview.Editor
             manager.doorPoint = doorPoint;
             manager.driverSeat = driverSeat;
             manager.steeringWheel = steeringWheel;
+            manager.driverDoor = driverDoor;
+            manager.doorMaxOpenAngle = 55f;
             manager.startOffsetFromSeat = new Vector3(-1.86f, 0f, -0.15f);
             manager.startYawOffset = 90f;
             manager.interactUIEvent = interactUIEvent;
@@ -247,6 +268,7 @@ namespace Rearview.Editor
                          $"• Xe: {(car ? car.name : "Chưa tìm thấy")}\n" +
                          $"• Ghế Lái (FrontSeat_Left): {(driverSeat ? driverSeat.name : "Chưa tìm thấy")}\n" +
                          $"• Vô Lăng (Steering_Wheel): {(steeringWheel ? steeringWheel.name : "Chưa tìm thấy")}\n" +
+                         $"• Cửa Lái (Byton_Optimazile_LookDev_SK_FD_Left): {(driverDoor ? driverDoor.name : "Chưa tìm thấy")}\n" +
                          $"• Điểm cửa Door_Driver: {(doorPoint ? "Đã gán" : "Chưa có")}\n" +
                          $"• RCC Camera: {(rccCam ? rccCam.name : "Chưa tìm thấy")}\n" +
                          $"• Nhân vật: {(character ? character.name : "Chưa tìm thấy")}\n" +
@@ -256,7 +278,7 @@ namespace Rearview.Editor
                          $"• Animation Vào Xe: {(enterCarClip ? enterCarClip.name : "Chưa có")}\n" +
                          $"• Canh chỉnh ghế: Offset ({manager.startOffsetFromSeat.x:F2}, {manager.startOffsetFromSeat.y:F2}, {manager.startOffsetFromSeat.z:F2}), Yaw {manager.startYawOffset}°\n" +
                          $"• EventSystem: {(eventSystem ? "Đã sẵn sàng" : "Chưa có")}\n\n" +
-                         $"Trạng thái ban đầu: OnFoot (Nhân vật đi bộ, xe tắt máy chờ). Đến gần xe sẽ hiện UI của HAP, bấm [E] để kích hoạt animation bước vào xe và ngồi khớp chuẩn xác vào ghế lái (FrontSeat_Left) sau vô lăng!";
+                         $"Trạng thái ban đầu: OnFoot (Nhân vật đi bộ, xe tắt máy chờ). Đến gần xe sẽ hiện UI của HAP, bấm [E] để kích hoạt animation bước vào xe, cửa xe tự động mở/đóng đồng bộ với tay nhân vật và ngồi khớp chuẩn xác vào ghế lái!";
 
             EditorUtility.DisplayDialog("Rearview - Setup Thành Công", msg, "OK");
             Debug.Log($"[VehicleSceneSetup] {msg}");

@@ -107,6 +107,29 @@ namespace Rearview
         [Tooltip("Yaw rotation offset in degrees from car heading at start of animation (90 = facing directly into driver door).")]
         public float startYawOffset = 90f;
 
+        [Header("--- Driver Door Animation Sync ---")]
+        [Tooltip("Transform of the driver door mesh (Byton_Optimazile_LookDev_SK_FD_Left). Auto-found if null.")]
+        public Transform driverDoor;
+
+        [Tooltip("Maximum opening angle in degrees around the door's local Y axis.")]
+        [Range(10f, 90f)]
+        public float doorMaxOpenAngle = 55f;
+
+        [Tooltip("Curve defining how the door opens and closes synchronized with the character's animation (0 = fully closed, 1 = max open angle).")]
+        public AnimationCurve doorOpenCurve = new AnimationCurve(
+            new Keyframe(0f, 0f, 0f, 0f),              // Frame 0: Closed
+            new Keyframe(0.18f, 0f, 0f, 2.0f),         // Frame 30: Hand touches handle, starts cracking open
+            new Keyframe(0.38f, 1f, 1.5f, 0f),         // Frame 63: Swung wide open
+            new Keyframe(0.64f, 1f, 0f, 0f),           // Frame 105: Stays open while character enters & sits
+            new Keyframe(0.88f, 0f, -3.5f, 0f),        // Frame 145: Pulled completely shut
+            new Keyframe(1.0f, 0f, 0f, 0f)             // Frame 165: Firmly closed
+        );
+
+        [Tooltip("Local axis around which the door rotates. Default is Vector3.up (Y axis).")]
+        public Vector3 doorRotationAxis = Vector3.up;
+
+        private Quaternion initialDoorLocalRotation = Quaternion.identity;
+
         [Header("--- Vehicle Exit Safety ---")]
         [Tooltip("Maximum vehicle speed (km/h) to allow exiting safely.")]
         public float maxExitSpeed = 3f;
@@ -196,6 +219,11 @@ namespace Rearview
             if (activePlayableGraph.IsValid())
             {
                 activePlayableGraph.Destroy();
+            }
+
+            if (driverDoor != null && initialDoorLocalRotation != Quaternion.identity)
+            {
+                driverDoor.localRotation = initialDoorLocalRotation;
             }
         }
 
@@ -337,7 +365,30 @@ namespace Rearview
                 startOffsetFromSeat = new Vector3(-1.86f, 0f, -0.15f);
             }
 
-            // 7. HAP MEvent for Interact UI
+            // 7. Driver Door (Byton_Optimazile_LookDev_SK_FD_Left)
+            if (!driverDoor && carController)
+            {
+                foreach (var t in carController.GetComponentsInChildren<Transform>(true))
+                {
+                    if (t.name == "Byton_Optimazile_LookDev_SK_FD_Left")
+                    {
+                        driverDoor = t;
+                        break;
+                    }
+                }
+
+                if (!driverDoor)
+                {
+                    driverDoor = carController.transform.Find("The_Last_Drive_Car/Byton_Optimazile_LookDev_SK_FD_Left");
+                }
+            }
+
+            if (driverDoor != null)
+            {
+                initialDoorLocalRotation = driverDoor.localRotation;
+            }
+
+            // 8. HAP MEvent for Interact UI
             if (!interactUIEvent)
             {
 #if UNITY_EDITOR
@@ -348,7 +399,7 @@ namespace Rearview
                     interactUIEvent = MTools.GetInstance<MalbersAnimations.Events.MEvent>("Interact UI");
             }
 
-            // 8. Enter Car Animation Clip
+            // 9. Enter Car Animation Clip
 #if UNITY_EDITOR
             if (!enterCarClip)
             {
@@ -372,13 +423,14 @@ namespace Rearview
         public void AutoSetupReferencesAndOffsets()
         {
             driverSeat = null; // force re-detection of FrontSeat_Left
+            driverDoor = null; // force re-detection of Byton_Optimazile_LookDev_SK_FD_Left
             AutoFindReferences();
             startOffsetFromSeat = new Vector3(-1.86f, 0f, -0.15f);
             startYawOffset = 90f;
 #if UNITY_EDITOR
             UnityEditor.EditorUtility.SetDirty(this);
 #endif
-            Debug.Log($"[VehicleCharacterManager] ✅ Đã cấu hình xong: Ghế lái = {(driverSeat ? driverSeat.name : "null")}, Vô lăng = {(steeringWheel ? steeringWheel.name : "null")}, Offset = {startOffsetFromSeat}");
+            Debug.Log($"[VehicleCharacterManager] ✅ Đã cấu hình xong: Ghế lái = {(driverSeat ? driverSeat.name : "null")}, Vô lăng = {(steeringWheel ? steeringWheel.name : "null")}, Cửa lái = {(driverDoor ? driverDoor.name : "null")}, Offset = {startOffsetFromSeat}");
         }
 
         /// <summary>
@@ -639,9 +691,24 @@ namespace Rearview
                 float elapsed = 0f;
                 bool cameraSwitched = false;
 
+                // Cache initial door rotation before opening
+                if (driverDoor != null)
+                {
+                    initialDoorLocalRotation = driverDoor.localRotation;
+                }
+
                 while (elapsed < totalDuration)
                 {
                     elapsed += Time.deltaTime;
+                    float normalizedTime = Mathf.Clamp01(elapsed / totalDuration);
+
+                    // Animate driver door opening/closing based on calibrated curve
+                    if (driverDoor != null && doorOpenCurve != null)
+                    {
+                        float curveVal = doorOpenCurve.Evaluate(normalizedTime);
+                        float currentAngle = curveVal * doorMaxOpenAngle;
+                        driverDoor.localRotation = initialDoorLocalRotation * Quaternion.AngleAxis(currentAngle, doorRotationAxis);
+                    }
 
                     // Near the end of animation (~80%, when character is inside the cabin), switch camera to car
                     if (!cameraSwitched && elapsed >= totalDuration * 0.8f)
@@ -651,6 +718,12 @@ namespace Rearview
                     }
 
                     yield return null;
+                }
+
+                // Ensure door is firmly closed at the end of animation
+                if (driverDoor != null)
+                {
+                    driverDoor.localRotation = initialDoorLocalRotation;
                 }
 
                 if (activePlayableGraph.IsValid())
