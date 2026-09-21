@@ -94,6 +94,11 @@ namespace Rearview
         [Tooltip("Animation curve for pre-aligning character to the driver door.")]
         public AnimationCurve alignCurve = new AnimationCurve(new Keyframe(0f, 0f, 0f, 2f), new Keyframe(1f, 1f, 0f, 0f));
 
+        [Header("--- Exit Transition Settings ---")]
+        [Tooltip("Duration in seconds to smoothly blend from exit animation back to HAP idle locomotion (0.45s gives a silky smooth transition from feet-together to idle stance).")]
+        [Range(0.1f, 1.5f)]
+        public float exitTransitionDuration = 0.45f;
+
         [Header("--- Driver Seat & Animation Alignment ---")]
         [Tooltip("Transform of the driver seat cushion (FrontSeat_Left in Left-Hand Drive). Auto-found if null.")]
         public Transform driverSeat;
@@ -991,19 +996,36 @@ namespace Rearview
             // 2. Play reverse animation from Frame 165 down to Frame 0
             if (animator != null && enterCarClip != null)
             {
-                if (!activePlayableGraph.IsValid())
+                if (activePlayableGraph.IsValid())
+                    activePlayableGraph.Destroy();
+
+                activePlayableGraph = PlayableGraph.Create("ExitCarPlayable");
+                activePlayableGraph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
+
+                var mixer = AnimationMixerPlayable.Create(activePlayableGraph, 2);
+                clipPlayable = AnimationClipPlayable.Create(activePlayableGraph, enterCarClip);
+                clipPlayable.SetSpeed(0f);
+
+                bool hasController = animator.runtimeAnimatorController != null;
+                AnimatorControllerPlayable controllerPlayable = default;
+                if (hasController)
                 {
-                    activePlayableGraph = PlayableGraph.Create("EnterCarPlayable");
-                    activePlayableGraph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
-
-                    clipPlayable = AnimationClipPlayable.Create(activePlayableGraph, enterCarClip);
-                    clipPlayable.SetSpeed(0f);
-
-                    var output = AnimationPlayableOutput.Create(activePlayableGraph, "Animation", animator);
-                    output.SetSourcePlayable(clipPlayable);
-
-                    activePlayableGraph.Play();
+                    controllerPlayable = AnimatorControllerPlayable.Create(activePlayableGraph, animator.runtimeAnimatorController);
                 }
+
+                activePlayableGraph.Connect(clipPlayable, 0, mixer, 0);
+                if (hasController)
+                {
+                    activePlayableGraph.Connect(controllerPlayable, 0, mixer, 1);
+                }
+
+                mixer.SetInputWeight(0, 1f);
+                mixer.SetInputWeight(1, 0f);
+
+                var output = AnimationPlayableOutput.Create(activePlayableGraph, "Animation", animator);
+                output.SetSourcePlayable(mixer);
+
+                activePlayableGraph.Play();
 
                 float totalDuration = enterCarClip.length / enterAnimSpeed;
                 float elapsed = 0f;
@@ -1049,6 +1071,43 @@ namespace Rearview
                     driverDoor.localRotation = initialDoorLocalRotation;
                 }
 
+                // Hold final standing pose at frame 0
+                if (clipPlayable.IsValid())
+                {
+                    clipPlayable.SetTime(0f);
+                }
+
+                // 3. Unparent character from vehicle and firmly ground outside door
+                if (character)
+                {
+                    character.transform.SetParent(null, true);
+
+                    Vector3 exitPos = character.transform.position;
+                    float carGroundY = carController ? carController.transform.position.y - 0.8f : exitPos.y;
+                    if (TryGetGroundHeight(exitPos, out float groundY, carGroundY))
+                    {
+                        exitPos.y = groundY;
+                        character.transform.position = exitPos;
+                    }
+                }
+
+                // 4. Smoothly blend from exit standing pose (legs together) into HAP Idle pose (legs spread)
+                if (hasController && exitTransitionDuration > 0f)
+                {
+                    float blendElapsed = 0f;
+                    while (blendElapsed < exitTransitionDuration)
+                    {
+                        blendElapsed += Time.deltaTime;
+                        float t = Mathf.Clamp01(blendElapsed / exitTransitionDuration);
+                        float smoothT = Mathf.SmoothStep(0f, 1f, t);
+                        mixer.SetInputWeight(0, 1f - smoothT);
+                        mixer.SetInputWeight(1, smoothT);
+                        yield return null;
+                    }
+                    mixer.SetInputWeight(0, 0f);
+                    mixer.SetInputWeight(1, 1f);
+                }
+
                 // Clean up PlayableGraph so AnimatorController resumes on-foot locomotion
                 if (activePlayableGraph.IsValid())
                 {
@@ -1060,23 +1119,23 @@ namespace Rearview
                 // Fallback if no animation clip is present
                 yield return new WaitForSeconds(0.3f);
                 SwitchToHAPCamera();
+
+                if (character)
+                {
+                    character.transform.SetParent(null, true);
+                    Vector3 exitPos = character.transform.position;
+                    float carGroundY = carController ? carController.transform.position.y - 0.8f : exitPos.y;
+                    if (TryGetGroundHeight(exitPos, out float groundY, carGroundY))
+                    {
+                        exitPos.y = groundY;
+                        character.transform.position = exitPos;
+                    }
+                }
             }
 
-            // 3. Unparent character from vehicle and restore full on-foot physics & control
+            // 5. Restore full on-foot physics & control
             if (character)
             {
-                // Unparent preserving world position
-                character.transform.SetParent(null, true);
-
-                // Ground Raycast to ensure feet are firmly on the terrain
-                Vector3 exitPos = character.transform.position;
-                float carGroundY = carController ? carController.transform.position.y - 0.8f : exitPos.y;
-                if (TryGetGroundHeight(exitPos, out float groundY, carGroundY))
-                {
-                    exitPos.y = groundY;
-                    character.transform.position = exitPos;
-                }
-
                 // Re-enable colliders
                 SetCharacterCollidersEnabled(true);
 

@@ -251,6 +251,7 @@ namespace Rearview.Editor
             manager.enterCarClip = enterCarClip;
             manager.enterAnimSpeed = 1.875f;
             manager.alignToDoorDuration = 0.35f;
+            manager.exitTransitionDuration = 0.45f;
             manager.maxExitSpeed = 3f;
             manager.carMovingWarningText = "Dừng xe để xuống!";
             manager.currentState = VehicleCharacterManager.ControlState.OnFoot;

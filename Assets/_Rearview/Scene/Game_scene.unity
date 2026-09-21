@@ -111736,6 +111736,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  exitTransitionDuration: 0.45
   driverSeat: {fileID: 1561961883}
   steeringWheel: {fileID: 185232103}
   startOffsetFromSeat: {x: -1.86, y: 0, z: -0.00265}
