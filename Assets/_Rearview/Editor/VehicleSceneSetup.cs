@@ -234,6 +234,42 @@ namespace Rearview.Editor
                 }
             }
 
+            // 11. Ensure Driver Cabin FPS Camera (RCC_HoodCamera) exists on car
+            Transform cabinCamera = null;
+            if (car != null)
+            {
+                var existingHood = car.GetComponentInChildren<RCC_HoodCamera>(true);
+                if (existingHood != null)
+                {
+                    cabinCamera = existingHood.transform;
+                }
+                else
+                {
+                    GameObject hoodGO = new GameObject("Cabin_FPS_Camera");
+                    hoodGO.transform.SetParent(car.transform, false);
+                    hoodGO.transform.localPosition = new Vector3(-0.358f, 0.65f, -0.12f);
+                    hoodGO.transform.localRotation = Quaternion.identity;
+                    hoodGO.AddComponent<RCC_HoodCamera>();
+                    Undo.RegisterCreatedObjectUndo(hoodGO, "Create Cabin_FPS_Camera");
+                    cabinCamera = hoodGO.transform;
+                }
+            }
+
+            // 12. Configure RCC_Camera modes (only cycle FPS and TPS via C-key; keep other modes available for cutscenes)
+            if (rccCam != null)
+            {
+                Undo.RecordObject(rccCam, "Configure RCC_Camera Modes");
+                rccCam.useHoodCameraMode = true;
+                rccCam.useWheelCameraMode = false;
+                rccCam.useFixedCameraMode = false;
+                rccCam.useCinematicCameraMode = false;
+                rccCam.useTopCameraMode = false;
+                rccCam.hoodCameraFOV = 65f;
+                rccCam.useOrbitInHoodCameraMode = true;
+                rccCam.cameraMode = RCC_Camera.CameraMode.FPS;
+                EditorUtility.SetDirty(rccCam);
+            }
+
             // Assign all references
             Undo.RecordObject(manager, "Configure VehicleCharacterManager");
             manager.carController = car;
@@ -252,6 +288,7 @@ namespace Rearview.Editor
             manager.enterAnimSpeed = 1.875f;
             manager.alignToDoorDuration = 0.35f;
             manager.exitTransitionDuration = 0.45f;
+            manager.defaultInVehicleCameraMode = RCC_Camera.CameraMode.FPS;
             manager.maxExitSpeed = 3f;
             manager.carMovingWarningText = "Dừng xe để xuống!";
             manager.currentState = VehicleCharacterManager.ControlState.OnFoot;

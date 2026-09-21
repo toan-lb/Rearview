@@ -111695,6 +111695,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   currentState: 0
+  defaultInVehicleCameraMode: 1
   carController: {fileID: 1886976303}
   rccCamera: {fileID: 57241921}
   character: {fileID: 1941707291327339138}

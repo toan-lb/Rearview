@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEditor;
 
 [CustomEditor(typeof(RCC_Camera))]
@@ -47,6 +47,7 @@ public class RCC_CameraEditor : Editor {
     private SerializedProperty TPSMinimumFOVProp;
     private SerializedProperty TPSMaximumFOVProp;
 
+    private SerializedProperty toggleOnlyFPSAndTPSProp;
     private SerializedProperty hoodCameraFOVProp;
     private SerializedProperty useOrbitInHoodCameraModeProp;
 
@@ -108,6 +109,7 @@ public class RCC_CameraEditor : Editor {
         TPSMinimumFOVProp = serializedObject.FindProperty("TPSMinimumFOV");
         TPSMaximumFOVProp = serializedObject.FindProperty("TPSMaximumFOV");
 
+        toggleOnlyFPSAndTPSProp = serializedObject.FindProperty("toggleOnlyFPSAndTPS");
         hoodCameraFOVProp = serializedObject.FindProperty("hoodCameraFOV");
         useOrbitInHoodCameraModeProp = serializedObject.FindProperty("useOrbitInHoodCameraMode");
 
@@ -170,6 +172,7 @@ public class RCC_CameraEditor : Editor {
         if (showGeneralSettings) {
             EditorGUI.indentLevel++;
             EditorGUILayout.PropertyField(cameraModeProp, new GUIContent("Camera Mode"));
+            EditorGUILayout.PropertyField(toggleOnlyFPSAndTPSProp, new GUIContent("Toggle Only FPS & TPS (C-Key)"));
             EditorGUILayout.PropertyField(isRenderingProp, new GUIContent("Is Rendering"));
             EditorGUILayout.PropertyField(actualCameraProp, new GUIContent("Actual Camera"));
             EditorGUILayout.PropertyField(pivotProp, new GUIContent("Pivot"));

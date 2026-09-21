@@ -1,4 +1,4 @@
-﻿//----------------------------------------------
+//----------------------------------------------
 //            Realistic Car Controller
 //
 // Copyright © 2014 - 2025 BoneCracker Games
@@ -205,6 +205,13 @@ public class RCC_Camera : RCC_Core {
     /// Whether to enable top camera mode for cycling.
     /// </summary>
     public bool useTopCameraMode = false;
+
+    /// <summary>
+    /// Summary:
+    /// If enabled, pressing the camera switch key (C) toggles strictly between FPS (Cabin) and TPS (Exterior).
+    /// Other camera modes remain available via ChangeCamera(mode) for cutscenes and scripts.
+    /// </summary>
+    public bool toggleOnlyFPSAndTPS = true;
 
     /// <summary>
     /// Summary:
@@ -734,6 +741,18 @@ public class RCC_Camera : RCC_Core {
     /// </summary>
     public void ChangeCamera() {
 
+        if (toggleOnlyFPSAndTPS) {
+            if (cameraMode == CameraMode.FPS) {
+                ChangeCamera(CameraMode.TPS);
+            } else {
+                if (cameraTarget != null && cameraTarget.HoodCamera != null && useHoodCameraMode)
+                    ChangeCamera(CameraMode.FPS);
+                else
+                    ChangeCamera(CameraMode.TPS);
+            }
+            return;
+        }
+
         cameraSwitchCount++;
 
         if (cameraSwitchCount >= 6)
@@ -792,6 +811,27 @@ public class RCC_Camera : RCC_Core {
     public void ChangeCamera(CameraMode mode) {
 
         cameraMode = mode;
+
+        switch (mode) {
+            case CameraMode.TPS:
+                cameraSwitchCount = 0;
+                break;
+            case CameraMode.FPS:
+                cameraSwitchCount = 1;
+                break;
+            case CameraMode.WHEEL:
+                cameraSwitchCount = 2;
+                break;
+            case CameraMode.FIXED:
+                cameraSwitchCount = 3;
+                break;
+            case CameraMode.CINEMATIC:
+                cameraSwitchCount = 4;
+                break;
+            case CameraMode.TOP:
+                cameraSwitchCount = 5;
+                break;
+        }
 
     }
 
@@ -1228,11 +1268,16 @@ public class RCC_Camera : RCC_Core {
                 break;
 
             case CameraMode.FPS:
-                transform.SetParent(cameraTarget.HoodCamera.transform, false);
-                transform.localPosition = Vector3.zero;
-                transform.localRotation = Quaternion.identity;
-                targetFieldOfView = hoodCameraFOV;
-                cameraTarget.HoodCamera.FixShake();
+                if (cameraTarget != null && cameraTarget.HoodCamera != null) {
+                    transform.SetParent(cameraTarget.HoodCamera.transform, false);
+                    transform.localPosition = Vector3.zero;
+                    transform.localRotation = Quaternion.identity;
+                    targetFieldOfView = hoodCameraFOV;
+                    cameraTarget.HoodCamera.FixShake();
+                } else {
+                    Debug.LogWarning("RCC_Camera: HoodCamera not found on target vehicle. Falling back to TPS mode.");
+                    ChangeCamera(CameraMode.TPS);
+                }
                 break;
 
             case CameraMode.WHEEL:

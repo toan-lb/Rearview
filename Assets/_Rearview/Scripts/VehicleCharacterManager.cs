@@ -28,8 +28,12 @@ namespace Rearview
         }
 
         [Header("--- Control State ---")]
-        [Tooltip("Initial and current state: OnFoot (walking) or InVehicle (driving).")]
+        [Tooltip("Current control state: OnFoot (HAP character) or InVehicle (RCC vehicle).")]
         public ControlState currentState = ControlState.OnFoot;
+
+        [Header("--- In-Vehicle Camera Settings ---")]
+        [Tooltip("Default camera mode when entering the vehicle. Defaults to FPS (Cabin View) for immersive cockpit interaction.")]
+        public RCC_Camera.CameraMode defaultInVehicleCameraMode = RCC_Camera.CameraMode.FPS;
 
         [Header("--- Vehicle References (RCC) ---")]
         [Tooltip("The player car controller. Auto-found if null.")]
@@ -569,6 +573,44 @@ namespace Rearview
                 }
             }
 #endif
+
+            // 10. Cabin FPS Camera & RCC Camera Settings
+            EnsureCabinFPSCamera();
+            ConfigureRCCCameraSettings();
+        }
+
+        /// <summary>
+        /// Ensures driver cabin FPS camera (RCC_HoodCamera) exists on carController at eye level.
+        /// </summary>
+        public void EnsureCabinFPSCamera()
+        {
+            if (!carController) return;
+            var existingHood = carController.GetComponentInChildren<RCC_HoodCamera>(true);
+            if (existingHood == null)
+            {
+                GameObject hoodGO = new GameObject("Cabin_FPS_Camera");
+                hoodGO.transform.SetParent(carController.transform, false);
+                hoodGO.transform.localPosition = new Vector3(-0.358f, 0.65f, -0.12f);
+                hoodGO.transform.localRotation = Quaternion.identity;
+                hoodGO.AddComponent<RCC_HoodCamera>();
+                Debug.Log("[VehicleCharacterManager] Created Cabin_FPS_Camera on car at local position (-0.358, 0.65, -0.12).");
+            }
+        }
+
+        /// <summary>
+        /// Configures RCC_Camera settings so the C key only cycles between FPS and TPS.
+        /// </summary>
+        public void ConfigureRCCCameraSettings()
+        {
+            if (!rccCamera) return;
+            rccCamera.toggleOnlyFPSAndTPS = true;
+            rccCamera.useHoodCameraMode = true;
+            rccCamera.useWheelCameraMode = false;
+            rccCamera.useFixedCameraMode = false;
+            rccCamera.useCinematicCameraMode = false;
+            rccCamera.useTopCameraMode = false;
+            rccCamera.useOrbitInHoodCameraMode = true;
+            rccCamera.hoodCameraFOV = 65f;
         }
 
         /// <summary>
@@ -1172,6 +1214,9 @@ namespace Rearview
             if (hapCameraRig)
                 hapCameraRig.SetActive(false);
 
+            EnsureCabinFPSCamera();
+            ConfigureRCCCameraSettings();
+
             if (rccCamera)
             {
                 rccCamera.isRendering = true;
@@ -1183,6 +1228,9 @@ namespace Rearview
                     if (listener) listener.enabled = true;
                 }
                 rccCamera.SetTarget(carController);
+
+                // Apply default in-vehicle camera mode (FPS Cabin View)
+                rccCamera.ChangeCamera(defaultInVehicleCameraMode);
             }
         }
 
