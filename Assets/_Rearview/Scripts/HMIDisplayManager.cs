@@ -509,6 +509,12 @@ namespace Rearview
         {
             currentApp = app;
 
+            // Audio: HMI touch beep
+            if (VehicleAudioFeedback.Instance)
+            {
+                VehicleAudioFeedback.Instance.PlayTouchBeep();
+            }
+
             if (launcherGridPanel) launcherGridPanel.SetActive(app == AAOSApp.Launcher);
 
             if (appScreens != null)
@@ -558,21 +564,25 @@ namespace Rearview
         public void NextStation()
         {
             currentStationIndex = (currentStationIndex + 1) % radioStations.Length;
+            if (VehicleAudioFeedback.Instance) VehicleAudioFeedback.Instance.PlayButtonClick();
         }
 
         public void PrevStation()
         {
             currentStationIndex = (currentStationIndex - 1 + radioStations.Length) % radioStations.Length;
+            if (VehicleAudioFeedback.Instance) VehicleAudioFeedback.Instance.PlayButtonClick();
         }
 
         public void CycleDTC()
         {
             currentDtcIndex = (currentDtcIndex + 1) % dtcCodes.Length;
+            if (VehicleAudioFeedback.Instance) VehicleAudioFeedback.Instance.PlayButtonClick();
         }
 
         public void ToggleBabyMode()
         {
             babyModeActive = !babyModeActive;
+            if (VehicleAudioFeedback.Instance) VehicleAudioFeedback.Instance.PlayTouchBeep();
         }
         #endregion
 

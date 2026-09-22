@@ -577,6 +577,27 @@ namespace Rearview
             // 10. Cabin FPS Camera & RCC Camera Settings
             EnsureCabinFPSCamera();
             ConfigureRCCCameraSettings();
+
+            // 11. Ensure In-Cabin Interaction & Audio Feedback Managers
+            EnsureCockpitManagersExist();
+        }
+
+        /// <summary>
+        /// Ensures CockpitInteractionManager and VehicleAudioFeedback exist in the scene.
+        /// </summary>
+        public void EnsureCockpitManagersExist()
+        {
+            if (!FindFirstObjectByType<VehicleAudioFeedback>())
+            {
+                GameObject audioGO = new GameObject("VehicleAudioFeedback");
+                audioGO.AddComponent<VehicleAudioFeedback>();
+            }
+
+            if (!FindFirstObjectByType<CockpitInteractionManager>())
+            {
+                GameObject cockpitGO = new GameObject("CockpitInteractionManager");
+                cockpitGO.AddComponent<CockpitInteractionManager>();
+            }
         }
 
         /// <summary>
@@ -910,6 +931,13 @@ namespace Rearview
                     initialDoorLocalRotation = driverDoor.localRotation;
                 }
 
+                // Audio: Door handle release & door opening
+                if (VehicleAudioFeedback.Instance)
+                {
+                    VehicleAudioFeedback.Instance.PlayDoorHandle();
+                    VehicleAudioFeedback.Instance.PlayDoorOpen();
+                }
+
                 while (elapsed < totalDuration)
                 {
                     elapsed += Time.deltaTime;
@@ -942,6 +970,12 @@ namespace Rearview
                 if (driverDoor != null)
                 {
                     driverDoor.localRotation = initialDoorLocalRotation;
+                }
+
+                // Audio: Solid metal door slam
+                if (VehicleAudioFeedback.Instance)
+                {
+                    VehicleAudioFeedback.Instance.PlayDoorClose();
                 }
 
                 // Hold final frame (seated driving pose with hands on steering wheel)
@@ -1078,6 +1112,13 @@ namespace Rearview
                     initialDoorLocalRotation = driverDoor.localRotation;
                 }
 
+                // Audio: Door latch release & door open from inside
+                if (VehicleAudioFeedback.Instance)
+                {
+                    VehicleAudioFeedback.Instance.PlayDoorHandle();
+                    VehicleAudioFeedback.Instance.PlayDoorOpen();
+                }
+
                 while (elapsed < totalDuration)
                 {
                     elapsed += Time.deltaTime;
@@ -1111,6 +1152,12 @@ namespace Rearview
                 if (driverDoor != null)
                 {
                     driverDoor.localRotation = initialDoorLocalRotation;
+                }
+
+                // Audio: Door slam upon exiting
+                if (VehicleAudioFeedback.Instance)
+                {
+                    VehicleAudioFeedback.Instance.PlayDoorClose();
                 }
 
                 // Hold final standing pose at frame 0
@@ -1374,6 +1421,12 @@ namespace Rearview
                 carController.SetCanControl(true);
                 carController.handbrakeInput = 0f;
                 carController.StartEngine();
+
+                // Audio: Engine starter & ignition roar
+                if (!isInit && VehicleAudioFeedback.Instance)
+                {
+                    VehicleAudioFeedback.Instance.PlayEngineIgnition();
+                }
             }
         }
 

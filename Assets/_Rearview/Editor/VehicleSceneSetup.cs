@@ -270,6 +270,21 @@ namespace Rearview.Editor
                 EditorUtility.SetDirty(rccCam);
             }
 
+            // 13. Ensure In-Cabin Interaction & Audio Feedback Managers exist in scene
+            if (!Object.FindFirstObjectByType<VehicleAudioFeedback>())
+            {
+                GameObject audioGO = new GameObject("VehicleAudioFeedback");
+                audioGO.AddComponent<VehicleAudioFeedback>();
+                Undo.RegisterCreatedObjectUndo(audioGO, "Create VehicleAudioFeedback");
+            }
+
+            if (!Object.FindFirstObjectByType<CockpitInteractionManager>())
+            {
+                GameObject cockpitGO = new GameObject("CockpitInteractionManager");
+                cockpitGO.AddComponent<CockpitInteractionManager>();
+                Undo.RegisterCreatedObjectUndo(cockpitGO, "Create CockpitInteractionManager");
+            }
+
             // Assign all references
             Undo.RecordObject(manager, "Configure VehicleCharacterManager");
             manager.carController = car;

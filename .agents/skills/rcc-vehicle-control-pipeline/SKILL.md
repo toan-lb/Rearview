@@ -199,4 +199,47 @@ Before testing a scene or vehicle modification:
 - [ ] Character does not fall through ground when exiting (Ground Raycast working).
 - [ ] Only 1 `AudioListener` is active in the scene at any time.
 - [ ] HMI screen displays speed, RPM, radio stations, and DTC codes correctly.
+- [ ] In-vehicle camera defaults to FPS Cabin View; `[C]` key strictly toggles between FPS and TPS.
+
+---
+
+## 7. Vehicle In-Cabin Tactile & Emotional Polish Standards
+
+> [!IMPORTANT]
+> **The Car is the Soul of the Game:**
+> The vehicle in *The Last Waypoint* is not an arcade prop or a generic racer. It is the father's handmade legacy, held together with DIY wiring, scrap metal, and hot glue, serving as a sanctuary for three generations. Every interaction in the cabin must feel tactile, grounded, and emotionally resonant.
+
+### 7.1 In-Cabin Interaction Paradigm (Focus & Cursor Mode)
+- **Driving vs. Interaction:** While driving, the player is in FPS Cabin View with orbit/mouse look. However, the curved HMI screen and physical dashboard buttons require direct, pixel-accurate touch and click input.
+- **Screen Focus Mode (`[F]` / Click Screen):**
+  - Pressing `[F]` or clicking the HMI display transitions the camera smoothly from the driver's eye level `(-0.358, 0.65, -0.12)` to an optimized Infotainment Focus Position `(-0.15, 0.58, 0.25)`.
+  - Unlocks the hardware mouse cursor (`Cursor.lockState = CursorLockMode.None`, `Cursor.visible = true`) for direct touch interaction with the 8 AAOS app cards, left rail dock, and app controls.
+  - Temporarily disables camera orbit to prevent mouse movement from turning the view while clicking buttons.
+  - Pressing `[Esc]` or `[F]` returns smoothly to the road-facing driving position.
+
+### 7.2 Mechanical Audio Feedback (Tactile Vehicle SFX)
+Every physical action must produce rich acoustic feedback:
+1. **Door Mechanics:**
+   - Metal latch release click upon pressing `[E]`.
+   - Old door hinge creak during open swing.
+   - Heavy metal door slam ("thud") upon closing.
+2. **Engine Ignition:**
+   - Key turn click followed by starter motor grind ("crank-crank-vroom") and subtle cockpit camera shake upon starting.
+3. **Cockpit Controls & HMI:**
+   - Physical tactile "click" for dashboard toggles/hazard lights.
+   - Electronic soft "beep" for HMI touchscreen taps and app launches.
+   - Magnetic cassette mechanism clunk when inserting/playing father's tapes.
+4. **Wipers:**
+   - Rubber squeak/sweep sound across wet glass.
+
+### 7.3 Atmospheric Immersion (Rain & Windshield)
+- The game's setting is a fictional rainy coastal micro-town.
+- The windshield must convey weather intensity (water droplet trails, condensation/fogging).
+- Wipers must physically clear water in an arc, contrasting the cold, stormy exterior with the warm, amber-lit interior cabin.
+
+### 7.4 The Rearview Mirror & The Sleeping Baby Foreshadowing
+- In accordance with `Documents/SSOT_THE_LAST_WAYPOINT.md`:
+  - The interior rearview mirror is a narrative device, not just a driving aid.
+  - It subtly reflects the rear seats: an infant blanket, a baby bottle, and the sleeping child.
+  - The `CABIN_STABILIZER (BABY_MODE)` toggle in HMI Settings directly softens suspension physics to preserve the child's sleep, foreshadowing the Chapter 4 climax.
 
