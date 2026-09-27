@@ -48,7 +48,7 @@ namespace MalbersAnimations.IK
         {
             var Target = set.Targets[TargetIndex]; //Always get the Target from the IK Set (it might vary)
 
-            if (Target == null) return; //If there's no target skip
+            if (Target == null || Target.Value == null) return; //If there's no target skip
 
             //Check Max and Min Distance if is greater than Zero
             if (Distance.Min != 0 && Distance.Max != 0)

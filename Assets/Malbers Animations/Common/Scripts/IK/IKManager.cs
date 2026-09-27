@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 using System;
 using System.Reflection;
@@ -104,6 +104,11 @@ namespace MalbersAnimations.IK
                     set.LateUpdate(animator, Weight, Time.deltaTime);
                 }
             }
+        }
+
+        private void OnAnimatorIK(int layerIndex)
+        {
+            OnAnimatorIK();
         }
 
         private void OnAnimatorIK()

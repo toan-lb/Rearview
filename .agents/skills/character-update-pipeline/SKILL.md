@@ -231,6 +231,13 @@ Camera TPS (`Cameras CM3`) không follow trực tiếp `transform.position` củ
   ```
 - Đảm bảo `character` trỏ vào GameObject root của nhân vật mới để khi nhấn phím **[E]**, nhân vật được ẩn đi/hiện ra và chuyển giao quyền điều khiển giữa HAP và RCC.
 
+### 7.3 Tích hợp Cockpit Steering Wheel IK (Bàn tay bám Vô Lăng)
+- Khi thay thế nhân vật mới, chiều dài sải tay, xương cánh tay và kích thước bàn tay sẽ thay đổi.
+- **BẮT BUỘC tuân thủ skill [vehicle-cockpit-ik-pipeline](../vehicle-cockpit-ik-pipeline/SKILL.md):**
+  1. **Khớp nối IK (Zero-Discontinuity):** Sử dụng `VehicleSteeringIKHook` để hiệu chuẩn (calibrate) vị trí và hướng xoay của `AvatarIKGoal.LeftHand` và `AvatarIKGoal.RightHand` trong `OnAnimatorIK` ở tư thế ngồi hoàn tất của animation vào xe (`enterCarClip`).
+  2. **Tránh bẫy trục xương:** Tuyệt đối không gán trực tiếp rotation của xương FBX vào IK Goal vì lệch hệ trục tọa độ giữa FBX (+X ngón tay) và Mecanim (+Z ngón tay, +Y mu bàn tay) sẽ gây bẻ gãy cổ tay 90°–180°.
+  3. **Zero Rigid Hints:** Không kích hoạt `HumanIKHint` cố định trong xe; để bộ giải Two-Bone IK tự do tính toán góc mở khuỷu tay tự nhiên theo chuyển động quay vô lăng.
+
 ---
 
 ## 8. Template Code Editor tự động hóa (`CharacterReplacerTemplate.cs`)

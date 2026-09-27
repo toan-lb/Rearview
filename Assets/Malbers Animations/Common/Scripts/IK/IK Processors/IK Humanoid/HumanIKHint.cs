@@ -12,7 +12,7 @@ namespace MalbersAnimations.IK
         public override void OnAnimatorIK(IKSet set, Animator animator, int index, float weight)
         {
             var Target = set.Targets[TargetIndex];
-            if (Target == null || Target == null) return;
+            if (Target == null || Target.Value == null) return;
 
             animator.SetIKHintPositionWeight(hint, weight);
             animator.SetIKHintPosition(hint, Target.position);

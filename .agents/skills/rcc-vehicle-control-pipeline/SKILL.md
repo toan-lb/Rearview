@@ -200,6 +200,7 @@ Before testing a scene or vehicle modification:
 - [ ] Only 1 `AudioListener` is active in the scene at any time.
 - [ ] HMI screen displays speed, RPM, radio stations, and DTC codes correctly.
 - [ ] In-vehicle camera defaults to FPS Cabin View; `[C]` key strictly toggles between FPS and TPS.
+- [ ] **Steering Wheel IK verified:** Driver hands are pinned to `Steering_Wheel` targets (`HandTarget_L` and `HandTarget_R`), orbiting naturally without wrist twist or mesh deformation (refer to [vehicle-cockpit-ik-pipeline](../vehicle-cockpit-ik-pipeline/SKILL.md)).
 
 ---
 
@@ -242,4 +243,11 @@ Every physical action must produce rich acoustic feedback:
   - The interior rearview mirror is a narrative device, not just a driving aid.
   - It subtly reflects the rear seats: an infant blanket, a baby bottle, and the sleeping child.
   - The `CABIN_STABILIZER (BABY_MODE)` toggle in HMI Settings directly softens suspension physics to preserve the child's sleep, foreshadowing the Chapter 4 climax.
+
+### 7.5 Cockpit Steering Wheel IK & Hand Ergonomics
+- The driver's hands must remain physically attached to the steering wheel rim during steering input ($A/D$).
+- **Hierarchy:** `The_Last_Drive_Car -> The_Last_Drive_Car (Mesh Root) -> Steering_Wheel -> HandTarget_L / HandTarget_R`.
+- **Zero-Collider Rule:** `HandTarget_L` and `HandTarget_R` must strictly contain no colliders to protect RCC PhysX compound bounds.
+- **IK Rules & Calibration:** See [vehicle-cockpit-ik-pipeline](../vehicle-cockpit-ik-pipeline/SKILL.md) for the mathematical mapping between Mecanim Avatar IK Goal space, dynamic `VehicleSteeringIKHook` calibration, and two-bone IK solver kinematics.
+
 

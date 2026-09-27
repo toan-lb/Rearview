@@ -285,6 +285,11 @@ namespace Rearview.Editor
                 Undo.RegisterCreatedObjectUndo(cockpitGO, "Create CockpitInteractionManager");
             }
 
+            // 14. Setup HAP Native Steering Wheel IK and Hand Targets
+            VehicleHAPIKSetup.SetupHAPSteeringIK();
+            manager.EnsureSteeringWheelTargets();
+            var ikManager = character != null ? character.GetComponent<MalbersAnimations.IK.IKManager>() : null;
+
             // Assign all references
             Undo.RecordObject(manager, "Configure VehicleCharacterManager");
             manager.carController = car;
@@ -295,6 +300,11 @@ namespace Rearview.Editor
             manager.driverSeat = driverSeat;
             manager.steeringWheel = steeringWheel;
             manager.driverDoor = driverDoor;
+            manager.characterIKManager = ikManager;
+            manager.handTargetLeft = manager.steeringWheel ? manager.steeringWheel.Find("HandTarget_L") : null;
+            manager.handTargetRight = manager.steeringWheel ? manager.steeringWheel.Find("HandTarget_R") : null;
+            manager.elbowHintLeft = manager.carController ? manager.carController.transform.Find("ElbowHint_L") : null;
+            manager.elbowHintRight = manager.carController ? manager.carController.transform.Find("ElbowHint_R") : null;
             manager.doorMaxOpenAngle = 55f;
             manager.startOffsetFromSeat = new Vector3(-1.86f, 0f, -0.00265f);
             manager.startYawOffset = 90f;

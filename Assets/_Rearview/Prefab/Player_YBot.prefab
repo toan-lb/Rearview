@@ -21709,6 +21709,7 @@ GameObject:
   - component: {fileID: 7074778521973275085}
   - component: {fileID: 4906314990178678177}
   - component: {fileID: 3905564276999165150}
+  - component: {fileID: 3894454134748907766}
   m_Layer: 20
   m_Name: Player_YBot
   m_TagString: Animal
@@ -38403,6 +38404,94 @@ MonoBehaviour:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
+  - name:
+      UseConstant: 1
+      ConstantValue: Steering
+      Variable: {fileID: 0}
+    active: 0
+    EnableTime: 0.35
+    DisableTime: 0.25
+    weight: 1
+    Targets:
+    - UseConstant: 1
+      ConstantValue: {fileID: 0}
+      Variable: {fileID: 0}
+    - UseConstant: 1
+      ConstantValue: {fileID: 0}
+      Variable: {fileID: 0}
+    - UseConstant: 1
+      ConstantValue: {fileID: 0}
+      Variable: {fileID: 0}
+    - UseConstant: 1
+      ConstantValue: {fileID: 0}
+      Variable: {fileID: 0}
+    ClearTargetsOnDisable: 0
+    aimer: {fileID: 178716140118144481}
+    IKProcesors:
+    - rid: 6580181778313248842
+    - rid: 6580181778313248843
+    - rid: 6580181778313248844
+    - rid: 6580181778313248845
+    weightProcessors: []
+    SelectedIKProcessor: 0
+    LerpWeight: 6
+    OnWeightChanged:
+      m_PersistentCalls:
+        m_Calls: []
+    OnSetEnable:
+      m_PersistentCalls:
+        m_Calls: []
+    OnSetDisable:
+      m_PersistentCalls:
+        m_Calls: []
+    EnterLerp:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+    ExitLerp:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
   EditorTabs: 0
   SelectedSet: 4
   references:
@@ -38562,6 +38651,62 @@ MonoBehaviour:
         showGizmos: 1
         GizmoRadius: 1
         GizmoColor: {r: 0, g: 1, b: 0, a: 1}
+    - rid: 6580181778313248842
+      type: {class: HumanIKGoal, ns: MalbersAnimations.IK, asm: MalbersAnimations}
+      data:
+        name: Left Hand Steering Goal
+        Active: 1
+        Weight: 1
+        TargetIndex: 0
+        AnimParameter: 
+        AnimParameterHash: 0
+        goal: 2
+        position: 1
+        OffsetP: {x: 0, y: 0, z: 0}
+        rotation: 1
+        OffsetR: {x: 0, y: 0, z: 0}
+        Distance:
+          minValue: 0
+          maxValue: 0
+        gizmos: 1
+    - rid: 6580181778313248843
+      type: {class: HumanIKGoal, ns: MalbersAnimations.IK, asm: MalbersAnimations}
+      data:
+        name: Right Hand Steering Goal
+        Active: 1
+        Weight: 1
+        TargetIndex: 1
+        AnimParameter: 
+        AnimParameterHash: 0
+        goal: 3
+        position: 1
+        OffsetP: {x: 0, y: 0, z: 0}
+        rotation: 1
+        OffsetR: {x: 0, y: 0, z: 0}
+        Distance:
+          minValue: 0
+          maxValue: 0
+        gizmos: 1
+    - rid: 6580181778313248844
+      type: {class: HumanIKHint, ns: MalbersAnimations.IK, asm: MalbersAnimations}
+      data:
+        name: Left Elbow Hint
+        Active: 0
+        Weight: 1
+        TargetIndex: 2
+        AnimParameter: 
+        AnimParameterHash: 0
+        hint: 2
+    - rid: 6580181778313248845
+      type: {class: HumanIKHint, ns: MalbersAnimations.IK, asm: MalbersAnimations}
+      data:
+        name: Right Elbow Hint
+        Active: 0
+        Weight: 1
+        TargetIndex: 3
+        AnimParameter: 
+        AnimParameterHash: 0
+        hint: 3
     - rid: 7949060586432626695
       type: {class: HumanIKGoalOffset, ns: MalbersAnimations.IK, asm: MalbersAnimations}
       data:
@@ -39047,6 +39192,18 @@ MonoBehaviour:
         debug: 0
         Target: {fileID: 1095494461706368144}
         Condition: 7
+--- !u!114 &3894454134748907766
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5333245542030835017}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 0}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &5336363129284654594
 GameObject:
   m_ObjectHideFlags: 0

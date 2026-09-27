@@ -49,6 +49,22 @@ namespace Rearview
         [Tooltip("The Malbers Cinemachine Camera Rig (e.g. Cameras CM3). Auto-found if null.")]
         public GameObject hapCameraRig;
 
+        [Header("--- Steering Wheel IK (HAP IKManager) ---")]
+        [Tooltip("The HAP IKManager component on the character.")]
+        public MalbersAnimations.IK.IKManager characterIKManager;
+
+        [Tooltip("Left hand grip target on the steering wheel.")]
+        public Transform handTargetLeft;
+
+        [Tooltip("Right hand grip target on the steering wheel.")]
+        public Transform handTargetRight;
+
+        [Tooltip("Left elbow hint anchor.")]
+        public Transform elbowHintLeft;
+
+        [Tooltip("Right elbow hint anchor.")]
+        public Transform elbowHintRight;
+
         [Header("--- Interaction Settings ---")]
         [Tooltip("Optional transform near the driver door for entering/exiting and UI anchor. If null, auto-created or calculated on the left of the car.")]
         public Transform doorPoint;
@@ -154,6 +170,8 @@ namespace Rearview
         private AnimationClipPlayable clipPlayable;
         private Collider[] characterColliders;
         private bool isTransitioning = false;
+        private Quaternion initialSteeringWheelLocalRotation = Quaternion.identity;
+        private bool isTargetsCalibrated = false;
 
         // Proximity tracking
         private bool isPlayerInRange = false;
@@ -524,6 +542,11 @@ namespace Rearview
                 }
             }
 
+            if (steeringWheel != null && initialSteeringWheelLocalRotation == Quaternion.identity)
+            {
+                initialSteeringWheelLocalRotation = steeringWheel.localRotation;
+            }
+
             // 7. Driver Door (Byton_Optimazile_LookDev_SK_FD_Left)
             if (!driverDoor && carController)
             {
@@ -580,6 +603,245 @@ namespace Rearview
 
             // 11. Ensure In-Cabin Interaction & Audio Feedback Managers
             EnsureCockpitManagersExist();
+
+            // 12. Ensure Steering Wheel Hand IK Targets
+            EnsureSteeringWheelTargets();
+        }
+
+        /// <summary>
+        /// Ensures hand target anchors on Steering_Wheel and elbow hints under car exist with zero colliders.
+        /// </summary>
+        public void EnsureSteeringWheelTargets()
+        {
+            if (steeringWheel != null)
+            {
+                // 1. Left Hand Target (10 o'clock position on rim)
+                if (handTargetLeft == null)
+                {
+                    handTargetLeft = steeringWheel.Find("HandTarget_L");
+                    if (handTargetLeft == null)
+                    {
+                        GameObject targetL = new GameObject("HandTarget_L");
+                        targetL.transform.SetParent(steeringWheel, false);
+                        targetL.transform.localPosition = new Vector3(-0.135f, 0.085f, 0.015f);
+                        targetL.transform.localRotation = new Quaternion(-0.20618158f, 0.14062755f, -0.38346653f, 0.8891943f);
+                        handTargetLeft = targetL.transform;
+                    }
+                }
+
+                // 2. Right Hand Target (2 o'clock position on rim)
+                if (handTargetRight == null)
+                {
+                    handTargetRight = steeringWheel.Find("HandTarget_R");
+                    if (handTargetRight == null)
+                    {
+                        GameObject targetR = new GameObject("HandTarget_R");
+                        targetR.transform.SetParent(steeringWheel, false);
+                        targetR.transform.localPosition = new Vector3(0.135f, 0.085f, 0.015f);
+                        targetR.transform.localRotation = new Quaternion(-0.20618158f, -0.14062755f, 0.38346653f, 0.8891943f);
+                        handTargetRight = targetR.transform;
+                    }
+                }
+            }
+
+            if (carController != null)
+            {
+                // 3. Left Elbow Hint (downward and outward towards driver door armrest)
+                if (elbowHintLeft == null)
+                {
+                    elbowHintLeft = carController.transform.Find("ElbowHint_L");
+                    if (elbowHintLeft == null)
+                    {
+                        GameObject hintL = new GameObject("ElbowHint_L");
+                        hintL.transform.SetParent(carController.transform, false);
+                        hintL.transform.localPosition = new Vector3(-0.68f, 0.20f, -0.10f);
+                        hintL.transform.localRotation = Quaternion.identity;
+                        elbowHintLeft = hintL.transform;
+                    }
+                }
+
+                // 4. Right Elbow Hint (downward and outward towards center console)
+                if (elbowHintRight == null)
+                {
+                    elbowHintRight = carController.transform.Find("ElbowHint_R");
+                    if (elbowHintRight == null)
+                    {
+                        GameObject hintR = new GameObject("ElbowHint_R");
+                        hintR.transform.SetParent(carController.transform, false);
+                        hintR.transform.localPosition = new Vector3(-0.08f, 0.20f, -0.10f);
+                        hintR.transform.localRotation = Quaternion.identity;
+                        elbowHintRight = hintR.transform;
+                    }
+                }
+            }
+
+            // Zero-Child-Collider compliance
+            StripColliders(handTargetLeft);
+            StripColliders(handTargetRight);
+            StripColliders(elbowHintLeft);
+            StripColliders(elbowHintRight);
+
+            if (!characterIKManager && character)
+            {
+                characterIKManager = character.GetComponent<MalbersAnimations.IK.IKManager>();
+            }
+        }
+
+        private void StripColliders(Transform t)
+        {
+            if (t == null) return;
+            var cols = t.GetComponentsInChildren<Collider>(true);
+            foreach (var c in cols)
+            {
+                if (c != null) Destroy(c);
+            }
+            var rb = t.GetComponent<Rigidbody>();
+            if (rb != null) Destroy(rb);
+        }
+
+        /// <summary>
+        /// Calibrates steering hand targets dynamically via OnAnimatorIK using VehicleSteeringIKHook.
+        /// Captures the exact Mecanim AvatarIKGoal position and rotation from the natural seated driving animation pose (Image 1).
+        /// Guarantees 0 distortion, 0 sinking, and pixel-perfect continuity when IK activates.
+        /// </summary>
+        public void CalibrateSteeringTargetsFromCurrentPose(System.Action onComplete = null)
+        {
+            EnsureSteeringWheelTargets();
+
+            if (!character || !steeringWheel)
+            {
+                onComplete?.Invoke();
+                return;
+            }
+
+            // Ensure steering wheel is temporarily in neutral rest rotation during calibration
+            if (initialSteeringWheelLocalRotation != Quaternion.identity)
+            {
+                steeringWheel.localRotation = initialSteeringWheelLocalRotation;
+            }
+
+            var hook = character.GetComponent<VehicleSteeringIKHook>();
+            if (hook == null) hook = character.AddComponent<VehicleSteeringIKHook>();
+
+            hook.CalibrateSteeringTargets(handTargetLeft, handTargetRight, () =>
+            {
+                isTargetsCalibrated = true;
+                onComplete?.Invoke();
+            });
+        }
+
+        /// <summary>
+        /// Engages HAP Steering IKSet on character's IKManager.
+        /// Guaranteed self-healing: automatically creates and initializes the "Steering" IKSet if not present.
+        /// </summary>
+        public void EnableSteeringIK()
+        {
+            EnsureSteeringWheelTargets();
+
+            if (!characterIKManager && character)
+            {
+                characterIKManager = character.GetComponent<MalbersAnimations.IK.IKManager>();
+            }
+
+            if (characterIKManager == null) return;
+
+            if (!characterIKManager.enabled)
+            {
+                characterIKManager.enabled = true;
+            }
+
+            // Ensure "Steering" IKSet exists on IKManager (Self-Healing Runtime Guarantee)
+            var steeringSet = characterIKManager.FindSet("Steering");
+            if (steeringSet == null)
+            {
+                steeringSet = new MalbersAnimations.IK.IKSet()
+                {
+                    name = new MalbersAnimations.Scriptables.StringReference("Steering") { UseConstant = true },
+                    active = true,
+                    Weight = 1f,
+                    EnableTime = 0.05f,
+                    DisableTime = 0.1f,
+                    LerpWeight = 0f, // Instant 100% full weight coupling to steering wheel
+                    Targets = new MalbersAnimations.Scriptables.TransformReference[2]
+                    {
+                        handTargetLeft,
+                        handTargetRight
+                    },
+                    IKProcesors = new List<MalbersAnimations.IK.IKProcessor>()
+                    {
+                        new MalbersAnimations.IK.HumanIKGoal()
+                        {
+                            name = "Left Hand Steering Goal",
+                            Active = true,
+                            Weight = 1f,
+                            goal = AvatarIKGoal.LeftHand,
+                            TargetIndex = 0,
+                            position = true,
+                            rotation = true,
+                            OffsetP = Vector3.zero,
+                            OffsetR = Vector3.zero
+                        },
+                        new MalbersAnimations.IK.HumanIKGoal()
+                        {
+                            name = "Right Hand Steering Goal",
+                            Active = true,
+                            Weight = 1f,
+                            goal = AvatarIKGoal.RightHand,
+                            TargetIndex = 1,
+                            position = true,
+                            rotation = true,
+                            OffsetP = Vector3.zero,
+                            OffsetR = Vector3.zero
+                        }
+                    }
+                };
+
+                steeringSet.Owner = characterIKManager;
+                var anim = characterIKManager.animator != null ? characterIKManager.animator : (character ? character.GetComponent<Animator>() : null);
+                var hashParams = new HashSet<int>();
+                if (anim != null)
+                {
+                    foreach (var p in anim.parameters)
+                    {
+                        if (p.type == AnimatorControllerParameterType.Float)
+                            hashParams.Add(p.nameHash);
+                    }
+                }
+                steeringSet.Initialize(anim, hashParams);
+                steeringSet.OnEnable(anim, hashParams);
+                characterIKManager.sets.Add(steeringSet);
+                Debug.Log("[VehicleCharacterManager] ✅ Runtime: Đã khởi tạo và gán IKSet 'Steering' vào IKManager.");
+            }
+            else
+            {
+                characterIKManager.Target_Set("Steering", handTargetLeft, 0);
+                characterIKManager.Target_Set("Steering", handTargetRight, 1);
+                // Disable rigid elbow hints to prevent folding wrists/elbows
+                characterIKManager.Processor_SetEnable("Steering", "Left Elbow Hint", false);
+                characterIKManager.Processor_SetEnable("Steering", "Right Elbow Hint", false);
+                characterIKManager.Set_Enable("Steering", true);
+            }
+
+            steeringSet.Weight = 1f;
+            steeringSet.active = true;
+            Debug.Log("[VehicleCharacterManager] 🚗 Steering IK activated (Hands coupled to Steering Wheel).");
+        }
+
+        /// <summary>
+        /// Disengages HAP Steering IKSet on character's IKManager.
+        /// </summary>
+        public void DisableSteeringIK()
+        {
+            if (!characterIKManager && character)
+            {
+                characterIKManager = character.GetComponent<MalbersAnimations.IK.IKManager>();
+            }
+
+            if (characterIKManager != null)
+            {
+                characterIKManager.Set_Enable("Steering", false);
+                Debug.Log("[VehicleCharacterManager] 🚶 Steering IK deactivated.");
+            }
         }
 
         /// <summary>
@@ -913,11 +1175,30 @@ namespace Rearview
                 activePlayableGraph = PlayableGraph.Create("EnterCarPlayable");
                 activePlayableGraph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
 
+                var mixer = AnimationMixerPlayable.Create(activePlayableGraph, 2);
                 clipPlayable = AnimationClipPlayable.Create(activePlayableGraph, enterCarClip);
+                clipPlayable.SetApplyPlayableIK(true);
+                clipPlayable.SetApplyFootIK(false);
                 clipPlayable.SetSpeed(0f); // manual normalized time control
 
+                bool hasController = animator.runtimeAnimatorController != null;
+                AnimatorControllerPlayable controllerPlayable = default;
+                if (hasController)
+                {
+                    controllerPlayable = AnimatorControllerPlayable.Create(activePlayableGraph, animator.runtimeAnimatorController);
+                }
+
+                activePlayableGraph.Connect(clipPlayable, 0, mixer, 0);
+                if (hasController)
+                {
+                    activePlayableGraph.Connect(controllerPlayable, 0, mixer, 1);
+                }
+
+                mixer.SetInputWeight(0, 1f);
+                mixer.SetInputWeight(1, 0.0001f);
+
                 var output = AnimationPlayableOutput.Create(activePlayableGraph, "Animation", animator);
-                output.SetSourcePlayable(clipPlayable);
+                output.SetSourcePlayable(mixer);
 
                 activePlayableGraph.Play();
 
@@ -982,6 +1263,36 @@ namespace Rearview
                 if (clipPlayable.IsValid())
                 {
                     clipPlayable.SetTime(enterCarClip.length);
+                }
+
+                // Parent character to car before finalizing IK so transforms are in vehicle local space
+                if (carController != null && character != null)
+                {
+                    character.transform.SetParent(carController.transform, true);
+                }
+
+                if (activePlayableGraph.IsValid())
+                {
+                    activePlayableGraph.Evaluate(0f);
+                }
+
+                // Calibrate steering targets directly from the exact seated driving pose (Image 1)
+                bool calibrated = false;
+                CalibrateSteeringTargetsFromCurrentPose(() =>
+                {
+                    calibrated = true;
+                    EnableSteeringIK();
+                });
+
+                float calibWait = 0.2f;
+                while (!calibrated && calibWait > 0f)
+                {
+                    calibWait -= Time.deltaTime;
+                    yield return null;
+                }
+                if (!calibrated)
+                {
+                    EnableSteeringIK();
                 }
             }
             else
@@ -1058,6 +1369,9 @@ namespace Rearview
         private IEnumerator ExitVehicleSequence()
         {
             isTransitioning = true;
+
+            // Disengage steering wheel IK before initiating exit motion
+            DisableSteeringIK();
 
             // 1. Immediately cut engine, disallow control, and apply handbrake
             if (carController)
@@ -1336,6 +1650,9 @@ namespace Rearview
                 activePlayableGraph.Destroy();
             }
 
+            // Immediately disengage steering IK when on foot
+            DisableSteeringIK();
+
             // 3. Enable HAP Camera Rig & disable RCC Camera
             SwitchToHAPCamera();
 
@@ -1393,23 +1710,63 @@ namespace Rearview
 
                     if (animator != null && enterCarClip != null)
                     {
-                        if (activePlayableGraph.IsValid()) activePlayableGraph.Destroy();
-                        activePlayableGraph = PlayableGraph.Create("EnterCarPlayable");
-                        activePlayableGraph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
+                        if (activePlayableGraph.IsValid())
+                        {
+                            clipPlayable.SetSpeed(0f);
+                            clipPlayable.SetTime(enterCarClip.length);
+                        }
+                        else
+                        {
+                            activePlayableGraph = PlayableGraph.Create("EnterCarPlayable");
+                            activePlayableGraph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
 
-                        clipPlayable = AnimationClipPlayable.Create(activePlayableGraph, enterCarClip);
-                        clipPlayable.SetSpeed(0f);
-                        clipPlayable.SetTime(enterCarClip.length);
+                            var mixer = AnimationMixerPlayable.Create(activePlayableGraph, 2);
+                            clipPlayable = AnimationClipPlayable.Create(activePlayableGraph, enterCarClip);
+                            clipPlayable.SetApplyPlayableIK(true);
+                            clipPlayable.SetApplyFootIK(false);
+                            clipPlayable.SetSpeed(0f);
+                            clipPlayable.SetTime(enterCarClip.length);
 
-                        var output = AnimationPlayableOutput.Create(activePlayableGraph, "Animation", animator);
-                        output.SetSourcePlayable(clipPlayable);
+                            bool hasController = animator.runtimeAnimatorController != null;
+                            AnimatorControllerPlayable controllerPlayable = default;
+                            if (hasController)
+                            {
+                                controllerPlayable = AnimatorControllerPlayable.Create(activePlayableGraph, animator.runtimeAnimatorController);
+                            }
 
-                        activePlayableGraph.Play();
+                            activePlayableGraph.Connect(clipPlayable, 0, mixer, 0);
+                            if (hasController)
+                            {
+                                activePlayableGraph.Connect(controllerPlayable, 0, mixer, 1);
+                            }
+
+                            mixer.SetInputWeight(0, 1f);
+                            mixer.SetInputWeight(1, 0.0001f);
+
+                            var output = AnimationPlayableOutput.Create(activePlayableGraph, "Animation", animator);
+                            output.SetSourcePlayable(mixer);
+
+                            activePlayableGraph.Play();
+                        }
                     }
                 }
 
                 // Parent character to car so it follows vehicle motion, tilting, and suspension
                 character.transform.SetParent(carController.transform, true);
+
+                if (activePlayableGraph.IsValid())
+                {
+                    activePlayableGraph.Evaluate(0f);
+                }
+
+                if (!isTargetsCalibrated)
+                {
+                    CalibrateSteeringTargetsFromCurrentPose(() => EnableSteeringIK());
+                }
+                else
+                {
+                    EnableSteeringIK();
+                }
             }
 
             // 2. Enable RCC Camera
@@ -1472,6 +1829,75 @@ namespace Rearview
             // 7. Trajectory line from startPos to seatPos
             Gizmos.color = new Color(0.2f, 0.8f, 1f, 0.7f);
             Gizmos.DrawLine(startPos + Vector3.up * 0.5f, seatPos + Vector3.up * 0.5f);
+        }
+    }
+
+    /// <summary>
+    /// Attached to the character (Player_YBot) alongside Animator.
+    /// Captures the exact Mecanim AvatarIKGoal position and rotation computed by the seated driving animation pose inside OnAnimatorIK.
+    /// Eliminates all bone space mismatches, axis inversions, and hand warping.
+    /// </summary>
+    [DefaultExecutionOrder(50)]
+    public class VehicleSteeringIKHook : MonoBehaviour
+    {
+        private Animator anim;
+        private bool isCalibrating = false;
+        private Transform targetL;
+        private Transform targetR;
+        private System.Action onComplete;
+
+        private void Awake()
+        {
+            anim = GetComponent<Animator>();
+        }
+
+        /// <summary>
+        /// Requests a 1-frame capture of the natural animation IK goals inside OnAnimatorIK.
+        /// </summary>
+        public void CalibrateSteeringTargets(Transform leftTarget, Transform rightTarget, System.Action callback = null)
+        {
+            if (anim == null) anim = GetComponent<Animator>();
+            targetL = leftTarget;
+            targetR = rightTarget;
+            onComplete = callback;
+            isCalibrating = true;
+        }
+
+        private void OnAnimatorIK(int layerIndex)
+        {
+            if (!isCalibrating) return;
+            if (anim == null || targetL == null || targetR == null)
+            {
+                isCalibrating = false;
+                return;
+            }
+
+            Vector3 leftPos = anim.GetIKPosition(AvatarIKGoal.LeftHand);
+            Quaternion leftRot = anim.GetIKRotation(AvatarIKGoal.LeftHand);
+            Vector3 rightPos = anim.GetIKPosition(AvatarIKGoal.RightHand);
+            Quaternion rightRot = anim.GetIKRotation(AvatarIKGoal.RightHand);
+
+            // Safety check: ensure valid world positions were sampled
+            if (leftPos != Vector3.zero && rightPos != Vector3.zero)
+            {
+                targetL.position = leftPos;
+                targetL.rotation = leftRot;
+                targetR.position = rightPos;
+                targetR.rotation = rightRot;
+
+                Debug.Log($"[VehicleSteeringIKHook] 🎯 OnAnimatorIK Calibrated successfully!\n" +
+                          $"  HandTarget_L localPos={targetL.localPosition}, localEuler={targetL.localEulerAngles}\n" +
+                          $"  HandTarget_R localPos={targetR.localPosition}, localEuler={targetR.localEulerAngles}");
+            }
+            else
+            {
+                Debug.LogWarning("[VehicleSteeringIKHook] ⚠️ GetIKPosition returned Vector3.zero during OnAnimatorIK calibration.");
+            }
+
+            isCalibrating = false;
+            var cb = onComplete;
+            onComplete = null;
+            cb?.Invoke();
         }
     }
 }
