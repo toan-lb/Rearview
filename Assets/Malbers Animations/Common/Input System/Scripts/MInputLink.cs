@@ -707,6 +707,16 @@ namespace MalbersAnimations.InputSystem
             }
 
 
+            if (MoveAxis == Vector3.zero && Gamepad.current != null)
+            {
+                var stick = Gamepad.current.leftStick.ReadValue();
+                if (stick.sqrMagnitude > 0.04f)
+                {
+                    character?.SetInputAxis(new Vector3(stick.x, 0f, stick.y));
+                    return;
+                }
+            }
+
             character?.SetInputAxis(MoveAxis);
         }
 

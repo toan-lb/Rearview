@@ -1,4 +1,4 @@
-﻿//----------------------------------------------
+//----------------------------------------------
 //            Realistic Car Controller
 //
 // Copyright © 2014 - 2025 BoneCracker Games
@@ -205,6 +205,32 @@ public class RCC_InputManager : RCC_Singleton<RCC_InputManager> {
             inputs.orbitX = inputActions.Camera.Orbit.ReadValue<Vector2>().x;
             inputs.orbitY = inputActions.Camera.Orbit.ReadValue<Vector2>().y;
             inputs.scroll = inputActions.Camera.Zoom.ReadValue<Vector2>();
+
+            // Direct Gamepad reading fallback to ensure 100% responsiveness on any Gamepad (Xbox, PlayStation, etc.)
+            var gp = Gamepad.current;
+            if (gp != null) {
+                float gpThrottle = gp.rightTrigger.ReadValue();
+                if (gpThrottle > inputs.throttleInput) inputs.throttleInput = gpThrottle;
+
+                float gpBrake = gp.leftTrigger.ReadValue();
+                if (gpBrake > inputs.brakeInput) inputs.brakeInput = gpBrake;
+
+                float gpSteer = gp.leftStick.x.ReadValue();
+                if (Mathf.Abs(gpSteer) > Mathf.Abs(inputs.steerInput)) inputs.steerInput = gpSteer;
+
+                float gpHB = gp.buttonSouth.ReadValue();
+                if (gpHB > inputs.handbrakeInput) inputs.handbrakeInput = gpHB;
+
+                Vector2 gpOrbit = gp.rightStick.ReadValue();
+                if (gpOrbit.sqrMagnitude > 0.01f) {
+                    inputs.orbitX = gpOrbit.x * 2.5f;
+                    inputs.orbitY = gpOrbit.y * 2.5f;
+                }
+
+                if (gp.leftStickButton.wasPressedThisFrame) {
+                    ChangeCamera_performed(default);
+                }
+            }
 
         } else {
             // If using mobile controls, read from RCC_MobileButtons.

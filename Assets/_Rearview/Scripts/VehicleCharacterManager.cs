@@ -1067,9 +1067,20 @@ namespace Rearview
 #if ENABLE_INPUT_SYSTEM
             if (Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame)
                 return true;
+
+            if (Gamepad.current != null)
+            {
+                // Y on Xbox / Triangle on PS - Standard Enter/Exit vehicle button
+                if (Gamepad.current.buttonNorth.wasPressedThisFrame)
+                    return true;
+
+                // X on Xbox / Square on PS - Common interaction button
+                if (Gamepad.current.buttonWest.wasPressedThisFrame)
+                    return true;
+            }
 #endif
 #if ENABLE_LEGACY_INPUT_MANAGER
-            if (Input.GetKeyDown(KeyCode.E))
+            if (Input.GetKeyDown(KeyCode.E) || Input.GetKeyDown(KeyCode.JoystickButton3))
                 return true;
 #endif
             return false;

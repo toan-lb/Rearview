@@ -13,6 +13,7 @@ namespace Rearview.Editor
         {
             EditorApplication.delayCall += () =>
             {
+                if (EditorApplication.isPlayingOrWillChangePlaymode) return;
                 SetupHAPSteeringIK();
             };
         }
